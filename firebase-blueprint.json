@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "preferences": { "type": "object" }
+      },
+      "required": ["id", "name", "email", "createdAt"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "User goal with targets, deadlines, and progress",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 50 },
+        "goalType": { "type": "string", "maxLength": 50 },
+        "targetValue": { "type": "string", "maxLength": 100 },
+        "currentValue": { "type": "string", "maxLength": 100 },
+        "unit": { "type": "string", "maxLength": 50 },
+        "deadline": { "type": "string", "maxLength": 50 },
+        "importance": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "maxLength": 20 },
+        "confirmed": { "type": "boolean" },
+        "source": { "type": "string", "maxLength": 50 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "title", "category", "importance", "status", "confirmed"]
+    },
+    "DailyContext": {
+      "title": "DailyContext",
+      "description": "Daily user inputs including available time, energy, and freeform situation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 20 },
+        "availableTime": { "type": "string", "maxLength": 20 },
+        "energy": { "type": "string", "maxLength": 20 },
+        "freeformContext": { "type": "string", "maxLength": 2000 },
+        "transcription": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "date", "availableTime", "energy"]
+    },
+    "DailyRecommendation": {
+      "title": "DailyRecommendation",
+      "description": "Ranked prioritized move generated for a specific day",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 20 },
+        "action": { "type": "string", "maxLength": 300 },
+        "goalId": { "type": "string", "maxLength": 128 },
+        "rationale": { "type": "string", "maxLength": 1000 },
+        "estimatedMinutes": { "type": "number" },
+        "priorityRank": { "type": "number" },
+        "status": { "type": "string", "maxLength": 30 },
+        "feedback": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "userId", "date", "action", "priorityRank", "status"]
+    },
+    "DailyFeedback": {
+      "title": "DailyFeedback",
+      "description": "User end-of-day reflection and rating",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 20 },
+        "rating": { "type": "string", "maxLength": 30 },
+        "comments": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "userId", "date", "rating"]
+    },
+    "MemoryItem": {
+      "title": "MemoryItem",
+      "description": "Long term user preferences, facts, and observed behavior",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 50 },
+        "content": { "type": "string", "maxLength": 1000 },
+        "source": { "type": "string", "maxLength": 50 },
+        "confirmed": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "type", "content", "confirmed"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profile collection"
+    },
+    "/goals/{goalId}": {
+      "schema": "Goal",
+      "description": "User goals collection"
+    },
+    "/daily_context/{contextId}": {
+      "schema": "DailyContext",
+      "description": "Daily context logs per user per day"
+    },
+    "/daily_recommendations/{recId}": {
+      "schema": "DailyRecommendation",
+      "description": "Generated recommendations per user"
+    },
+    "/daily_feedback/{feedbackId}": {
+      "schema": "DailyFeedback",
+      "description": "End-of-day feedback"
+    },
+    "/memory/{memoryId}": {
+      "schema": "MemoryItem",
+      "description": "Long-term user memory"
+    }
+  }
+}

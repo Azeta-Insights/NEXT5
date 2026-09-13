@@ -1,0 +1,10 @@
+{
+  "name": "Remix NEXT5",
+  "description": "Your next five moves. Personal prioritization and decision-support engine.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
