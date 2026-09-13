@@ -1,12 +1,12 @@
 {
-  "projectId": "cobalt-crowbar-18chg",
-  "appId": "1:874658421571:web:74af6b7cec469043c5adf6",
-  "apiKey": "AIzaSyCZqE_MpkapciECfn1yuPnniTKror3NKrg",
-  "authDomain": "cobalt-crowbar-18chg.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-remixnext5-def2ec0f-488a-4d47-9975-c6159fef83d4",
-  "storageBucket": "cobalt-crowbar-18chg.firebasestorage.app",
-  "messagingSenderId": "874658421571",
+  "projectId": "buoyant-aggregator-kgmzr",
+  "appId": "1:931790837413:web:9a8bc68658ca2e8da09f4c",
+  "apiKey": "AIzaSyB16Ic_RNzb8e5kyxQr2a6BWpeiFaSyIig",
+  "authDomain": "buoyant-aggregator-kgmzr.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-next5-f278d115-3384-4ba4-b2c3-c37fc2a7baa9",
+  "storageBucket": "buoyant-aggregator-kgmzr.firebasestorage.app",
+  "messagingSenderId": "931790837413",
   "measurementId": "",
-  "oAuthClientId": "874658421571-9430cd2i8asm3iejvub2ungl8qrqtae4.apps.googleusercontent.com",
+  "oAuthClientId": "931790837413-l1qsbk68qbhigqp8iokqo266fra90d55.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

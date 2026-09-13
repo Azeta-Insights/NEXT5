@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { 
-  CheckCircle2, Clock, ChevronDown, ChevronUp, 
+  CheckCircle2, ChevronDown, ChevronUp, 
   Sparkles, RefreshCw, ArrowRight, ShieldAlert,
-  Play, Lightbulb, ListChecks, Sliders, Headphones, Brain
+  Lightbulb, ListChecks
 } from 'lucide-react';
 import { Recommendation, DailyContext, Goal, EngineMode } from '../types';
-import { MoveExecutionModal } from './MoveExecutionModal';
 
 interface Next5ViewProps {
   recommendations: Recommendation[];
@@ -17,12 +16,6 @@ interface Next5ViewProps {
   onRefreshPriorities: (mode?: EngineMode) => void;
   onOpenContextModal: () => void;
   onOpenEndOfDay: () => void;
-  onOpenSimulator?: () => void;
-  onOpenAudioBriefing?: () => void;
-  onOpenVoiceFriction?: () => void;
-  activeSprintRec?: Recommendation | null;
-  onCloseSprintModal?: () => void;
-  onOpenSprintModal?: (rec: Recommendation | null) => void;
 }
 
 const ENGINE_MODES: { id: EngineMode; label: string; description: string }[] = [
@@ -59,50 +52,30 @@ const formatModeName = (mode: string | undefined): string => {
 
 const formatCategory = (category: string | undefined): string => {
   switch (category) {
-    case 'deep_work': return 'Deep Work';
-    case 'quick_win': return 'Quick Win';
-    case 'recovery': return 'Recovery';
+    case 'milestone_progression': return 'Milestone Move';
+    case 'immediate_fire': return 'Urgent Blocker';
+    case 'micro_step': return 'Momentum Move';
     case 'boundary': return 'Boundary';
-    case 'business': return 'Business';
-    case 'career': return 'Career';
-    case 'personal': return 'Personal';
-    case 'health': return 'Health';
-    case 'work': return 'Work';
-    case 'administrative': return 'Admin';
-    case 'communication': return 'Communication';
-    default: return category ? category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ') : 'Focus';
+    case 'administrative_triage': return 'Triage';
+    case 'relationship_capital': return 'Relationship';
+    case 'recovery_rest': return 'Energy Reset';
+    case 'negative_constraint': return 'Constraint';
+    default: return category ? category.replace('_', ' ') : 'Execution';
   }
 };
 
 export const Next5View: React.FC<Next5ViewProps> = ({
   recommendations,
   dailyContext,
-  goals,
   currentMode,
   isLoading,
   onUpdateStatus,
   onRefreshPriorities,
   onOpenContextModal,
   onOpenEndOfDay,
-  onOpenSimulator,
-  onOpenAudioBriefing,
-  onOpenVoiceFriction,
-  activeSprintRec,
-  onCloseSprintModal,
-  onOpenSprintModal,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [internalSprintRec, setInternalSprintRec] = useState<Recommendation | null>(null);
   const [showAdjustMenu, setShowAdjustMenu] = useState(false);
-
-  const selectedSprintRec = activeSprintRec !== undefined ? activeSprintRec : internalSprintRec;
-  const setSelectedSprintRec = (rec: Recommendation | null) => {
-    if (onOpenSprintModal) {
-      onOpenSprintModal(rec);
-    } else {
-      setInternalSprintRec(rec);
-    }
-  };
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -372,7 +345,7 @@ export const Next5View: React.FC<Next5ViewProps> = ({
                   )}
                 </div>
 
-                {/* 6. Action Controls Row: Primary [Start] [Complete] vs Subtle [Not today · Not relevant] */}
+                {/* 6. Action Controls Row: Complete vs Subtle [Not today · Not relevant] */}
                 <div className="flex items-center justify-between pt-2.5 border-t border-stone-100 flex-wrap gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     {isDone ? (
@@ -380,25 +353,14 @@ export const Next5View: React.FC<Next5ViewProps> = ({
                         <CheckCircle2 className="w-4 h-4" /> Completed
                       </span>
                     ) : (
-                      <>
-                        <button
-                          id={`rec-start-btn-${rec.id}`}
-                          onClick={() => setSelectedSprintRec(rec)}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition shadow-2xs"
-                        >
-                          <Play className="w-3 h-3 fill-stone-50" />
-                          Start
-                        </button>
-
-                        <button
-                          id={`rec-complete-btn-${rec.id}`}
-                          onClick={() => onUpdateStatus(rec.id, 'completed')}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 text-xs font-semibold transition shadow-2xs"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-stone-400" />
-                          Complete
-                        </button>
-                      </>
+                      <button
+                        id={`rec-complete-btn-${rec.id}`}
+                        onClick={() => onUpdateStatus(rec.id, 'completed')}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition shadow-2xs"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-stone-50" />
+                        Complete
+                      </button>
                     )}
                   </div>
 
@@ -518,18 +480,6 @@ export const Next5View: React.FC<Next5ViewProps> = ({
               <span>What’s changed?</span>
             </button>
 
-            {onOpenSimulator && (
-              <button
-                id="whatif-simulator-btn"
-                onClick={onOpenSimulator}
-                className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-xs font-semibold text-stone-600 transition shadow-2xs"
-                title="What-If Scenario Simulator (Key: T)"
-              >
-                <Sliders className="w-3.5 h-3.5 text-stone-500" />
-                <span className="hidden sm:inline">What-If</span>
-              </button>
-            )}
-
             <button
               id="recalculate-btn"
               disabled={isLoading}
@@ -542,7 +492,7 @@ export const Next5View: React.FC<Next5ViewProps> = ({
           </div>
         </div>
 
-        {/* 4. TODAY'S CONTEXT (Calm, Secondary Section - Requirement 13) */}
+        {/* 4. TODAY'S CONTEXT */}
         <div className="p-3.5 rounded-xl bg-stone-100/60 border border-stone-200/70 text-xs text-stone-700 flex items-start justify-between gap-3">
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
@@ -582,14 +532,6 @@ export const Next5View: React.FC<Next5ViewProps> = ({
           </button>
         </div>
       )}
-
-      {/* Focus Sprint & Unblocking Modal */}
-      <MoveExecutionModal
-        isOpen={Boolean(selectedSprintRec)}
-        onClose={() => setSelectedSprintRec(null)}
-        recommendation={selectedSprintRec}
-        onComplete={(id) => onUpdateStatus(id, 'completed')}
-      />
     </div>
   );
 };

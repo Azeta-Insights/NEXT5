@@ -30,11 +30,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       setPermissionDenied(false);
 
       speechEngineRef.current = new SpeechEngine(
-        (text, isFinal) => {
-          setTranscript((prev) => {
-            if (isFinal) return text;
-            return text;
-          });
+        (text) => {
+          setTranscript(text);
         },
         (err, denied) => {
           setErrorMsg(err);
@@ -43,7 +40,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         },
         () => {
           setIsListening(false);
-        }
+        },
+        initialText
       );
 
       // Automatically attempt to start recording on open
@@ -61,6 +59,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     if (speechEngineRef.current) {
       setErrorMsg(null);
       setPermissionDenied(false);
+      speechEngineRef.current.setBaseTranscript(transcript);
       const started = await speechEngineRef.current.start();
       setIsListening(started);
     }
@@ -70,6 +69,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     if (speechEngineRef.current) {
       speechEngineRef.current.stop();
       setIsListening(false);
+    }
+  };
+
+  const handleClear = () => {
+    setTranscript('');
+    if (speechEngineRef.current) {
+      speechEngineRef.current.resetTranscript();
     }
   };
 
@@ -145,7 +151,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             {isListening ? 'Listening... Speak your mind freely' : 'Tap microphone to speak'}
           </p>
           <span className="text-[11px] text-stone-400 mt-0.5 text-center">
-            Say what you're juggling, your goals, or what's stressing you out. You can edit the transcript below.
+            {isListening
+              ? 'Pauses are supported — take your time to think, your words will not be lost.'
+              : "Say what you're juggling, your goals, or what's stressing you out. You can edit the transcript below."}
           </span>
         </div>
 
@@ -167,7 +175,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             <span>Live Transcript (Editable):</span>
             {transcript && (
               <button
-                onClick={() => setTranscript('')}
+                onClick={handleClear}
                 className="text-stone-400 hover:text-stone-700 flex items-center gap-1 text-[11px]"
               >
                 <RefreshCw className="w-3 h-3" /> Clear
@@ -176,7 +184,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           </div>
           <textarea
             value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
+            onChange={(e) => {
+              setTranscript(e.target.value);
+              if (speechEngineRef.current) {
+                speechEngineRef.current.setBaseTranscript(e.target.value);
+              }
+            }}
             placeholder="Your voice transcription will stream here in real-time. You can adjust and refine it directly..."
             rows={4}
             className="w-full p-3.5 rounded-xl border border-stone-300 bg-white text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-stone-900 focus:border-stone-900 placeholder:text-stone-400 resize-none leading-relaxed"

@@ -15,25 +15,20 @@ import { AiCoachView } from './components/AiCoachView';
 import { DailyContextModal } from './components/DailyContextModal';
 import { EndOfDayModal } from './components/EndOfDayModal';
 import { AuthModal } from './components/AuthModal';
-import { ExportImportModal } from './components/ExportImportModal';
-import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
-import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
-import { ScenarioSimulationModal } from './components/ScenarioSimulationModal';
-import { AudioBriefingModal } from './components/AudioBriefingModal';
-import { VoiceFrictionModal } from './components/VoiceFrictionModal';
 import { auth, onAuthStateChanged, FirebaseUser } from './lib/firebase';
-import { FirestoreSync } from './lib/firestoreSync';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile>(() => StorageService.getUser());
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isOnboardingDone, setIsOnboardingDone] = useState<boolean>(() => StorageService.isOnboardingComplete());
   const [activeTab, setActiveTab] = useState<NavTab>('today');
+  
   const [goals, setGoals] = useState<Goal[]>(() => StorageService.getGoals());
   const [dailyContext, setDailyContext] = useState<DailyContext>(() => StorageService.getDailyContext());
   const [recommendations, setRecommendations] = useState<Recommendation[]>(() => StorageService.getRecommendations());
   const [memory, setMemory] = useState<MemoryItem[]>(() => StorageService.getMemory());
   const [currentMode, setCurrentMode] = useState<EngineMode>('normal');
+  
   const [isLoadingRecs, setIsLoadingRecs] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -41,13 +36,6 @@ export default function App() {
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [isEndOfDayOpen, setIsEndOfDayOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
-  const [isWeeklyDebriefOpen, setIsWeeklyDebriefOpen] = useState(false);
-  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
-  const [isAudioBriefingOpen, setIsAudioBriefingOpen] = useState(false);
-  const [isVoiceFrictionOpen, setIsVoiceFrictionOpen] = useState(false);
-  const [activeSprintRec, setActiveSprintRec] = useState<Recommendation | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -95,7 +83,6 @@ export default function App() {
         );
       } catch (err) {
         console.warn('Fallback prioritizing on client:', err);
-        // Local fallback handled in server or fallback generator
       } finally {
         setIsLoadingRecs(false);
       }
@@ -116,24 +103,9 @@ export default function App() {
         };
         setUser(updatedUser);
         StorageService.saveUser(updatedUser);
-        FirestoreSync.saveUser(updatedUser);
-
-        // Attempt loading user data from Firestore if available
-        const cloudData = await FirestoreSync.loadUserData(fbUser.uid);
-        if (cloudData.goals && cloudData.goals.length > 0) {
-          setGoals(cloudData.goals);
-          StorageService.saveGoals(cloudData.goals);
-        }
-        if (cloudData.dailyContext) {
-          setDailyContext(cloudData.dailyContext);
-          StorageService.saveDailyContext(cloudData.dailyContext);
-        }
-        if (cloudData.memories && cloudData.memories.length > 0) {
-          setMemory(cloudData.memories);
-          StorageService.saveMemory(cloudData.memories);
-        }
       }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -160,13 +132,9 @@ export default function App() {
 
   // Onboarding completion
   const handleOnboardingComplete = (newGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[]) => {
-    const createdGoals: Goal[] = [];
     newGoals.forEach((g) => {
-      const added = StorageService.addGoal(g);
-      createdGoals.push(added);
-      FirestoreSync.saveGoal(user.id, added);
+      StorageService.addGoal(g);
     });
-
     StorageService.setOnboardingComplete(true);
     setGoals(StorageService.getGoals());
     setIsOnboardingDone(true);
@@ -182,12 +150,10 @@ export default function App() {
     const updated = StorageService.updateRecommendationStatus(id, status);
     if (updated) {
       setRecommendations(StorageService.getRecommendations());
-      setMemory(StorageService.getMemory()); // Might record behavioral observation
-      FirestoreSync.updateRecommendationStatus(user.id, id, status);
+      setMemory(StorageService.getMemory());
 
       if (status === 'completed') {
         showToast(`Completed: ${updated.action}`);
-        // If all completed, suggest end-of-day
         const remaining = StorageService.getRecommendations().filter((r) => r.status === 'pending');
         if (remaining.length === 0) {
           setTimeout(() => setIsEndOfDayOpen(true), 800);
@@ -203,13 +169,12 @@ export default function App() {
   // Save Daily Context & recalculate
   const handleSaveDailyContext = (ctx: DailyContext, mode: EngineMode) => {
     StorageService.saveDailyContext(ctx);
-    FirestoreSync.saveDailyContext(user.id, ctx);
     setDailyContext(ctx);
     setCurrentMode(mode);
     fetchPriorities(mode, ctx);
   };
 
-  // End-of-Day feedback submit with move dispositions (PRD Section 24)
+  // End-of-Day feedback submit with move dispositions
   const handleSubmitEndOfDayFeedback = (
     rating: FeedbackRating, 
     comments?: string,
@@ -224,7 +189,6 @@ export default function App() {
       createdAt: new Date().toISOString(),
     };
     StorageService.saveFeedback(fb);
-    FirestoreSync.saveFeedback(user.id, fb);
 
     // Apply move dispositions if any
     if (moveDispositions) {
@@ -243,7 +207,6 @@ export default function App() {
             r.estimatedMinutes = Math.min(r.estimatedMinutes, 15);
             r.action = `[15m Unblocker] ${r.action}`;
           }
-          FirestoreSync.updateRecommendationStatus(user.id, r.id, r.status);
         }
       });
 
@@ -257,10 +220,9 @@ export default function App() {
     showToast('Day closed out cleanly. Priorities calibrated for tomorrow.');
   };
 
-  // Global Keyboard Shortcuts (PRD Section 4.5 Power User workflows)
+  // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is currently typing in an input, textarea, or contentEditable
       const target = e.target as HTMLElement;
       if (
         target &&
@@ -271,53 +233,11 @@ export default function App() {
         return;
       }
 
-      // Check for '?' key to toggle shortcuts modal
-      if (e.key === '?') {
-        e.preventDefault();
-        setIsShortcutsModalOpen((prev) => !prev);
-        return;
-      }
-
       // Close open modals on Escape
       if (e.key === 'Escape') {
-        setIsShortcutsModalOpen(false);
         setIsContextModalOpen(false);
         setIsEndOfDayOpen(false);
         setIsAuthModalOpen(false);
-        setIsExportModalOpen(false);
-        setIsWeeklyDebriefOpen(false);
-        setIsSimulatorOpen(false);
-        setIsAudioBriefingOpen(false);
-        setIsVoiceFrictionOpen(false);
-        setActiveSprintRec(null);
-        return;
-      }
-
-      // 'a' or 'A' -> Open Executive Audio Briefing (Spoken Standup)
-      if (e.key === 'a' || e.key === 'A') {
-        e.preventDefault();
-        setIsAudioBriefingOpen(true);
-        return;
-      }
-
-      // 'v' or 'V' -> Open Voice Friction Decompressor
-      if (e.key === 'v' || e.key === 'V') {
-        e.preventDefault();
-        setIsVoiceFrictionOpen(true);
-        return;
-      }
-
-      // 'w' or 'W' -> Open Weekly Debrief & Strategic Reset
-      if (e.key === 'w' || e.key === 'W') {
-        e.preventDefault();
-        setIsWeeklyDebriefOpen(true);
-        return;
-      }
-
-      // 't' or 'T' -> Open What-If Scenario Simulator
-      if (e.key === 't' || e.key === 'T') {
-        e.preventDefault();
-        setIsSimulatorOpen(true);
         return;
       }
 
@@ -343,23 +263,6 @@ export default function App() {
         return;
       }
 
-      // 'b' or 'B' -> Backup / Data Sovereignty
-      if (e.key === 'b' || e.key === 'B') {
-        e.preventDefault();
-        setIsExportModalOpen(true);
-        return;
-      }
-
-      // 's' or 'S' -> Launch Focus Sprint on Priority #1
-      if (e.key === 's' || e.key === 'S') {
-        const rank1Rec = recommendations.find((r) => r.priorityRank === 1 && r.status === 'pending');
-        if (rank1Rec) {
-          e.preventDefault();
-          setActiveSprintRec(rank1Rec);
-        }
-        return;
-      }
-
       // Keys 1 - 5: Toggle complete on move 1 through 5
       if (['1', '2', '3', '4', '5'].includes(e.key)) {
         const rank = parseInt(e.key, 10);
@@ -378,8 +281,7 @@ export default function App() {
 
   // Goal actions
   const handleAddGoal = (g: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const added = StorageService.addGoal(g);
-    FirestoreSync.saveGoal(user.id, added);
+    StorageService.addGoal(g);
     setGoals(StorageService.getGoals());
     showToast('New goal added.');
     fetchPriorities();
@@ -387,10 +289,6 @@ export default function App() {
 
   const handleUpdateGoal = (id: string, updates: Partial<Goal>) => {
     StorageService.updateGoal(id, updates);
-    const updated = StorageService.getGoals().find((g) => g.id === id);
-    if (updated) {
-      FirestoreSync.saveGoal(user.id, updated);
-    }
     setGoals(StorageService.getGoals());
     showToast('Goal updated.');
     fetchPriorities();
@@ -398,7 +296,6 @@ export default function App() {
 
   const handleDeleteGoal = (id: string) => {
     StorageService.deleteGoal(id);
-    FirestoreSync.deleteGoal(id);
     setGoals(StorageService.getGoals());
     showToast('Goal removed.');
     fetchPriorities();
@@ -410,8 +307,7 @@ export default function App() {
       ...item,
       userId: ('userId' in item && item.userId) ? item.userId : user.id,
     };
-    const added = StorageService.addMemory(memoryItem);
-    FirestoreSync.saveMemory(user.id, added);
+    StorageService.addMemory(memoryItem);
     setMemory(StorageService.getMemory());
     showToast('Memory item added.');
   };
@@ -423,7 +319,6 @@ export default function App() {
       current[idx].content = content;
       current[idx].updatedAt = new Date().toISOString();
       StorageService.saveMemory(current);
-      FirestoreSync.saveMemory(user.id, current[idx]);
       setMemory([...current]);
       showToast('Memory updated.');
     }
@@ -431,7 +326,6 @@ export default function App() {
 
   const handleDeleteMemory = (id: string) => {
     StorageService.deleteMemory(id);
-    FirestoreSync.deleteMemory(id);
     setMemory(StorageService.getMemory());
     showToast('Memory removed.');
   };
@@ -469,11 +363,6 @@ export default function App() {
         onOpenDailyContext={() => setIsContextModalOpen(true)}
         onOpenEndOfDay={() => setIsEndOfDayOpen(true)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        onOpenExportImport={() => setIsExportModalOpen(true)}
-        onOpenKeyboardShortcuts={() => setIsShortcutsModalOpen(true)}
-        onOpenWeeklyDebrief={() => setIsWeeklyDebriefOpen(true)}
-        onOpenAudioBriefing={() => setIsAudioBriefingOpen(true)}
-        onOpenVoiceFriction={() => setIsVoiceFrictionOpen(true)}
       />
 
       {/* Main Container */}
@@ -494,12 +383,6 @@ export default function App() {
             }}
             onOpenContextModal={() => setIsContextModalOpen(true)}
             onOpenEndOfDay={() => setIsEndOfDayOpen(true)}
-            onOpenSimulator={() => setIsSimulatorOpen(true)}
-            onOpenAudioBriefing={() => setIsAudioBriefingOpen(true)}
-            onOpenVoiceFriction={() => setIsVoiceFrictionOpen(true)}
-            activeSprintRec={activeSprintRec}
-            onCloseSprintModal={() => setActiveSprintRec(null)}
-            onOpenSprintModal={(rec) => setActiveSprintRec(rec)}
           />
         )}
 
@@ -528,12 +411,6 @@ export default function App() {
             recommendations={recommendations}
             memory={memory}
             onAddMemory={handleAddMemory}
-            onTriggerCatchUp={() => {
-              setCurrentMode('catch_up');
-              fetchPriorities('catch_up');
-              setActiveTab('today');
-              showToast('Switched to Catch-up mode to unstick stalled goals.');
-            }}
           />
         )}
 
@@ -572,7 +449,7 @@ export default function App() {
         onSubmitFeedback={handleSubmitEndOfDayFeedback}
       />
 
-      {/* Auth & Cloud Isolation Modal */}
+      {/* Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -581,14 +458,13 @@ export default function App() {
         onAuthSuccess={(profile) => {
           setUser(profile);
           StorageService.saveUser(profile);
-          FirestoreSync.saveUser(profile);
           showToast(`Signed in as ${profile.name}`);
         }}
         onSignOut={() => {
           setFirebaseUser(null);
           const guest: UserProfile = {
             id: 'guest_' + Date.now(),
-            name: 'Private Guest',
+            name: 'User',
             email: '',
             createdAt: new Date().toISOString(),
           };
@@ -596,98 +472,6 @@ export default function App() {
           StorageService.saveUser(guest);
           showToast('Signed out. Switched to offline session.');
         }}
-      />
-
-      {/* Export / Import Data Sovereignty Modal */}
-      <ExportImportModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        onDataRestored={() => {
-          setUser(StorageService.getUser());
-          setGoals(StorageService.getGoals());
-          setDailyContext(StorageService.getDailyContext());
-          setRecommendations(StorageService.getRecommendations());
-          setMemory(StorageService.getMemory());
-          setIsOnboardingDone(StorageService.isOnboardingComplete());
-          showToast('Workspace refreshed with restored data.');
-        }}
-      />
-
-      {/* Keyboard Shortcuts Helper Modal */}
-      <KeyboardShortcutsModal
-        isOpen={isShortcutsModalOpen}
-        onClose={() => setIsShortcutsModalOpen(false)}
-      />
-
-      {/* Weekly Executive Debrief & Strategic Reset Modal (Phase 9) */}
-      <WeeklyDebriefModal
-        isOpen={isWeeklyDebriefOpen}
-        onClose={() => setIsWeeklyDebriefOpen(false)}
-        goals={goals}
-        recommendations={recommendations}
-        memory={memory}
-        onAdoptMemoryRule={(rule) => {
-          handleAddMemory({
-            content: rule.content,
-            type: rule.type,
-            source: 'behavioral_observation',
-            confirmed: true,
-          });
-          showToast('Rule adopted into NEXT5 engine memory!');
-        }}
-        onTriggerCatchUp={() => {
-          setCurrentMode('catch_up');
-          fetchPriorities('catch_up');
-          setActiveTab('today');
-          showToast('Switched to Catch-up mode to unstick stalled goals.');
-        }}
-      />
-
-      {/* "What-If" Scenario Simulation & Trade-Off Engine Modal (PRD Section 19 & 20 - Phase 10) */}
-      <ScenarioSimulationModal
-        isOpen={isSimulatorOpen}
-        onClose={() => setIsSimulatorOpen(false)}
-        goals={goals}
-        recommendations={recommendations}
-        dailyContext={dailyContext}
-        onAdoptPlan={(newRecs, updatedCtx) => {
-          setRecommendations(newRecs);
-          StorageService.saveRecommendations(newRecs);
-          FirestoreSync.saveRecommendations(user.id, newRecs);
-
-          if (updatedCtx && Object.keys(updatedCtx).length > 0) {
-            const merged = { ...dailyContext, ...updatedCtx };
-            setDailyContext(merged);
-            StorageService.saveDailyContext(merged);
-            FirestoreSync.saveDailyContext(user.id, merged);
-          }
-
-          showToast('Committed simulated scenario into active day!');
-        }}
-      />
-
-      {/* Executive Audio Briefing Modal (Phase 11 - PRD Section 5 & 25) */}
-      <AudioBriefingModal
-        isOpen={isAudioBriefingOpen}
-        onClose={() => setIsAudioBriefingOpen(false)}
-        goals={goals}
-        recommendations={recommendations}
-        dailyContext={dailyContext}
-        userName={user.name}
-      />
-
-      {/* Voice Friction Decompressor Modal (Phase 11 - PRD Section 5 & 25) */}
-      <VoiceFrictionModal
-        isOpen={isVoiceFrictionOpen}
-        onClose={() => setIsVoiceFrictionOpen(false)}
-        recommendations={recommendations}
-        dailyContext={dailyContext}
-        onSwitchMode={(mode) => {
-          setCurrentMode(mode);
-          fetchPriorities(mode);
-          showToast(`Engine switched to ${mode.replace('_', ' ')} mode.`);
-        }}
-        onOpenSprintModal={(rec) => setActiveSprintRec(rec)}
       />
 
       {/* Floating Toast Feedback */}
