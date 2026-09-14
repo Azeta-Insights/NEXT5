@@ -1,12 +1,12 @@
 {
-  "projectId": "buoyant-aggregator-kgmzr",
-  "appId": "1:931790837413:web:9a8bc68658ca2e8da09f4c",
-  "apiKey": "AIzaSyB16Ic_RNzb8e5kyxQr2a6BWpeiFaSyIig",
-  "authDomain": "buoyant-aggregator-kgmzr.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-next5-f278d115-3384-4ba4-b2c3-c37fc2a7baa9",
-  "storageBucket": "buoyant-aggregator-kgmzr.firebasestorage.app",
-  "messagingSenderId": "931790837413",
+  "projectId": "next5-production",
+  "appId": "1:533896680721:web:ccad96714a5eb8dfbbe8b0",
+  "apiKey": "AIzaSyD8pigHfff-CfzK-X_seulx8cvbjYVrxkk",
+  "authDomain": "next5-production.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "next5-production.firebasestorage.app",
+  "messagingSenderId": "533896680721",
   "measurementId": "",
-  "oAuthClientId": "931790837413-l1qsbk68qbhigqp8iokqo266fra90d55.apps.googleusercontent.com",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

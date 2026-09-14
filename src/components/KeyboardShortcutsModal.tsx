@@ -28,16 +28,18 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-stone-50 rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-stone-200 flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-slate-950 rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-800 flex flex-col gap-4 text-slate-100 selection:bg-emerald-500/20 selection:text-emerald-200">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <Keyboard className="w-5 h-5 text-stone-900" />
-            <h3 className="font-bold text-stone-900 text-sm">Keyboard Shortcuts</h3>
+            <div className="w-7 h-7 rounded-lg bg-slate-800 text-emerald-400 flex items-center justify-center border border-slate-700">
+              <Keyboard className="w-4 h-4" />
+            </div>
+            <h3 className="font-extrabold text-slate-100 text-sm font-mono">Keyboard Shortcuts</h3>
           </div>
           <button
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 p-1"
+            className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -47,18 +49,18 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           {shortcuts.map((s, idx) => (
             <div
               key={idx}
-              className="flex items-center justify-between p-2 rounded-xl bg-white border border-stone-200/80 text-xs"
+              className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800/80 text-xs"
             >
-              <span className="text-stone-600 font-medium">{s.desc}</span>
-              <kbd className="px-2 py-1 rounded-md bg-stone-100 text-stone-800 font-mono font-bold text-[11px] border border-stone-300 shadow-2xs">
+              <span className="text-slate-300 font-medium">{s.desc}</span>
+              <kbd className="px-2 py-0.5 rounded-md bg-slate-800 text-emerald-300 font-mono font-bold text-[11px] border border-slate-700 shadow-2xs">
                 {s.key}
               </kbd>
             </div>
           ))}
         </div>
 
-        <p className="text-[11px] text-stone-500 text-center">
-          Press <kbd className="px-1.5 py-0.5 rounded bg-stone-200 font-mono text-[10px]">Esc</kbd> anytime to dismiss.
+        <p className="text-[11px] text-slate-500 text-center font-mono">
+          Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] border border-slate-700">Esc</kbd> anytime to dismiss.
         </p>
       </div>
     </div>

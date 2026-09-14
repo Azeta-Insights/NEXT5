@@ -89,7 +89,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// 1. Goal Extraction Endpoint
+// 1. Goal Extraction Endpoint (Intelligent Jargon Filtering & Multi-Goal Breakdown)
 app.post("/api/extract-goals", async (req, res) => {
   try {
     const { text, contexts } = req.body;
@@ -101,22 +101,57 @@ app.post("/api/extract-goals", async (req, res) => {
 
     if (ai) {
       try {
-        const prompt = `You are NEXT5's goal extraction and breakdown engine. The user provided a voice prompt or thought dump describing everything they want to achieve, do, build, fix, finish, or juggle. User contexts selected: ${(contexts || []).join(", ") || "General"}
-User voice prompt / thought dump: "${text}"
+        const prompt = `You are NEXT5's advanced voice extraction and intelligent goal decomposition engine.
+The user provided a raw voice prompt or conversational stream-of-consciousness thought dump describing what they want to accomplish, juggle, build, fix, finish, or organize.
 
-CRITICAL MANDATE - EXHAUSTIVE BREAKDOWN:
-1. Review the user's entire voice prompt carefully.
-2. Break it into individual goals accordingly: As many things as the user says they want to do, outline EVERY SINGLE ONE of them as a separate, distinct goal item.
-3. DO NOT bundle multiple distinct desires or tasks into one general goal.
-4. DO NOT omit or drop any item mentioned by the user, no matter how many they list (whether 3, 5, 8, 12, or more).
-5. Give each goal a crisp, direct title starting with an action verb (e.g., "Prepare client proposal", "Workout at the gym 3 times this week", "Call accountant regarding quarterly taxes", "Study system design chapter 3").
-6. Deduplicate: do NOT output duplicate copies of the same item.
-7. Categorize each goal accurately into one of: 'work' | 'career' | 'business' | 'personal' | 'health' | 'finance'.
-8. Set goalType as: 'target' | 'project' | 'habit' | 'milestone' | 'outcome'.
-9. Set importance as: 'high' | 'medium' | 'low'.
-10. Extract stated target values (e.g. "$5M", "3 times/week", "30 minutes") in targetValue and unit.
-11. Extract stated deadlines (e.g. "Friday", "Tomorrow 3pm", "End of month", "Q3") in deadline.
-12. Mark isInferred=false for goals explicitly stated by the user. Only mark isInferred=true if deduced from indirect context.`;
+User contexts: ${(contexts || []).join(", ") || "General"}
+Raw User Voice Prompt:
+"""${text}"""
+
+CRITICAL INTELLIGENCE & JARGON FILTERING MANDATES:
+1. RUTHLESSLY FILTER CONVERSATIONAL JARGON & FILLER:
+   - Voice transcripts contain excessive verbal filler, hesitations, and colloquial clutter (e.g., "um", "uh", "you know", "like", "so basically what I was thinking is", "there is just a lot on my plate right now", "to be honest", "at the end of the day", "my boss was saying", "we gotta touch base and circle back", "I'm feeling like I need to").
+   - Strip out ALL conversational filler and non-actionable fluff.
+   - Discern the real, concrete commitments, deliverables, projects, habits, and targets underneath.
+
+2. EXHAUSTIVE MULTI-GOAL BREAKDOWN (NEVER OUTPUT JUST ONE GOAL IF MULTIPLE ARE MENTIONED):
+   - Users often speak in one single, continuous, breathless run-on sentence containing 3, 4, 5, 6, 8 or more different desires or tasks.
+   - YOU MUST SPLIT AND SEPARATE EVERY DISTINCT INTENTION INTO ITS OWN INDEPENDENT GOAL ITEM.
+   - NEVER collapse multiple distinct tasks or desires into one vague overarching umbrella goal!
+   - Example: If the user says: "I need to fix the website and also review the investor deck by tomorrow morning and I gotta start hitting the gym three days a week and renew my expired passport and finalize the quarterly budget",
+     YOU MUST OUTPUT 5 DISTINCT GOALS:
+     1. "Fix website technical issues"
+     2. "Review investor pitch deck"
+     3. "Work out at gym 3 days per week"
+     4. "Renew expired passport"
+     5. "Finalize quarterly budget spreadsheet"
+   - Output as many separate goals as the user mentioned!
+
+3. CRISP, ACTION-ORIENTED GOAL TITLES:
+   - Begin each title with a strong action verb (e.g., "Build...", "Finalize...", "Review...", "Call...", "Schedule...", "Implement...", "Exercise...", "Save...").
+   - Keep titles clean, professional, and concise (under 50 characters).
+
+4. ACCURATE CATEGORIZATION:
+   - 'work': Professional assignments, coding, client deliverables, meetings, corporate tasks.
+   - 'business': Revenue, sales, company growth, marketing, fundraising, hiring.
+   - 'career': Skill development, certifications, interviews, resume, education.
+   - 'personal': Home errands, family, personal life, legal, administrative chores.
+   - 'health': Fitness, nutrition, sleep, mental wellbeing, doctor/dentist appointments.
+   - 'finance': Budgeting, investments, taxes, debt payoff, savings targets.
+
+5. ACCURATE GOAL TYPES & IMPORTANCE:
+   - goalType: 'target' | 'project' | 'habit' | 'milestone' | 'outcome'.
+   - importance: 'high' | 'medium' | 'low'.
+
+6. EXTRACT PARAMETERS:
+   - deadline: Pinpoint explicit or implied deadlines (e.g., "Friday", "Tomorrow morning", "Next month", "Thursday 3pm").
+   - targetValue & unit: Extract metrics (e.g., "$10,000", "3", "days/week", "10k run").
+
+7. GENERATE IMMEDIATE FIRST MOVE (15-30 MIN STARTER):
+   - For every extracted goal, formulate a crisp, concrete "suggestedFirstMove" (a low-friction 15-30 minute action the user can immediately execute today). This directly feeds NEXT5's prioritization engine to create their Next 5 Moves!
+
+8. JARGON FILTERING SUMMARY:
+   - In 'jargonFiltered', list 2-5 filler phrases or chatter eliminated, and state briefly in summary how the raw sentence was distilled into distinct goals.`;
 
         const response = await generateContentWithFallback(ai, {
           model: "gemini-3.6-flash",
@@ -141,8 +176,17 @@ CRITICAL MANDATE - EXHAUSTIVE BREAKDOWN:
                       importance: { type: Type.STRING },
                       notes: { type: Type.STRING },
                       isInferred: { type: Type.BOOLEAN },
+                      suggestedFirstMove: { type: Type.STRING },
                     },
                     required: ["title", "category", "goalType", "importance", "isInferred"],
+                  },
+                },
+                jargonFiltered: {
+                  type: Type.OBJECT,
+                  properties: {
+                    originalWordCount: { type: Type.NUMBER },
+                    fillerPhrasesRemoved: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    summary: { type: Type.STRING },
                   },
                 },
                 extractedContext: {
@@ -168,14 +212,15 @@ CRITICAL MANDATE - EXHAUSTIVE BREAKDOWN:
       }
     }
 
-    // Heuristic Fallback
-    const fallbackGoals = generateFallbackGoals(text, contexts);
+    // Heuristic Fallback (Multi-pass intelligent filter)
+    const fallbackResult = generateFallbackGoals(text, contexts);
     return res.json({
-      goals: fallbackGoals,
+      goals: fallbackResult.goals,
+      jargonFiltered: fallbackResult.jargonFiltered,
       extractedContext: {
         immediateDeadlines: [],
         statedEnergy: text.toLowerCase().includes("exhausted") || text.toLowerCase().includes("tired") ? "low" : "normal",
-        keyPressures: ["Extracted from user input"],
+        keyPressures: ["Extracted from voice prompt"],
       },
     });
 
@@ -830,60 +875,112 @@ TASK:
   }
 });
 
-// Helper: Heuristic goal extraction fallback
-function generateFallbackGoals(text: string, contexts: string[] = []): any[] {
+// Helper: Heuristic goal extraction fallback with intelligent jargon filtering & multi-goal separation
+function generateFallbackGoals(text: string, contexts: string[] = []): { goals: any[]; jargonFiltered: any } {
+  if (!text || !text.trim()) {
+    return {
+      goals: [],
+      jargonFiltered: { originalWordCount: 0, fillerPhrasesRemoved: [], summary: "No input provided." },
+    };
+  }
+
+  // 1. Detect & filter conversational jargon / filler
+  const fillerPatterns = [
+    /\b(um+|uh+|er+|ah+)\b/gi,
+    /\b(you know|you see)\b/gi,
+    /\b(so basically|basically|essentially)\b/gi,
+    /\b(like i said|like)\b/gi,
+    /\b(to be honest|honestly|truth be told)\b/gi,
+    /\b(at the end of the day)\b/gi,
+    /\b(there is a lot going on|there's a lot on my plate|i have so much to do)\b/gi,
+    /\b(what i was thinking is|what i'm trying to say is)\b/gi,
+    /\b(we gotta circle back|touch base on)\b/gi,
+  ];
+
+  const removedFillers: string[] = [];
+  let cleanedText = text;
+  for (const pattern of fillerPatterns) {
+    const matches = cleanedText.match(pattern);
+    if (matches && matches.length > 0) {
+      removedFillers.push(...matches.map((m) => m.trim()));
+      cleanedText = cleanedText.replace(pattern, " ");
+    }
+  }
+
+  // 2. Intelligent multi-boundary separation
+  // Splits on transitions, conjunctions, verbal intent triggers, punctuation, and bullet markers
+  const splitRegex = /(?:\n+|\r+|\. |\? |\! |; |,\s*(?:and\s+|also\s+|then\s+|plus\s+|or\s+)|(?:\b(?:and\s+then|as\s+well\s+as|on\s+top\s+of\s+that|in\s+addition\s+to|not\s+to\s+mention|along\s+with|meanwhile|after\s+that|oh\s+and|plus|also)\b)|(?:\b(?:i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|i\s+gotta|i\s+must|we\s+need\s+to|we\s+have\s+to|we\s+should|gotta|need\s+to|have\s+to|want\s+to|make\s+sure\s+to|remember\s+to|don't\s+forget\s+to|plan\s+to|trying\s+to)\b)|,\s*(?=[a-z]+ing\b|[a-z]+\s+the\b))/i;
+
+  const rawSegments = cleanedText
+    .split(splitRegex)
+    .map((s) => s.trim().replace(/^[-*•\d.)\s]+/, "").replace(/^[,\s;]+|[,\s;]+$/g, ""))
+    .filter((s) => s.length >= 4);
+
+  let candidateSegments = rawSegments;
+  if (candidateSegments.length <= 1 && cleanedText.includes(",")) {
+    const commaSplit = cleanedText
+      .split(/,\s*/)
+      .map((s) => s.trim().replace(/^[-*•\d.)\s]+/, ""))
+      .filter((s) => s.length >= 4);
+    if (commaSplit.length > candidateSegments.length) {
+      candidateSegments = commaSplit;
+    }
+  }
+
   const goals: any[] = [];
-  if (!text || !text.trim()) return goals;
-
-  const rawClauses = text
-    .split(/\n+|;|\. |\band\b|\balso\b|\bthen\b|\bplus\b|\bas well as\b|\bneed to\b|\bwant to\b/i)
-    .map(c => c.trim().replace(/^[-* \d.)\s]+/, ""))
-    .filter(c => c.length > 5);
-
   const seenTitles = new Set<string>();
 
-  for (const clause of rawClauses) {
-    const lower = clause.toLowerCase();
-    let title = clause.charAt(0).toUpperCase() + clause.slice(1);
-    if (title.length > 65) {
-      title = title.slice(0, 62).trim() + "...";
+  for (const seg of candidateSegments) {
+    let clean = seg
+      .replace(/^(and|also|then|plus|so|that|to|i|we|my)\s+/i, "")
+      .replace(/^(need to|have to|want to|gotta|should|must|plan to)\s+/i, "")
+      .trim();
+
+    if (clean.length < 3) continue;
+
+    let title = clean.charAt(0).toUpperCase() + clean.slice(1);
+    if (title.length > 55) {
+      title = title.slice(0, 52).trim() + "...";
     }
 
-    if (seenTitles.has(title.toLowerCase())) continue;
-    seenTitles.add(title.toLowerCase());
+    const titleLower = title.toLowerCase();
+    if (seenTitles.has(titleLower)) continue;
+    seenTitles.add(titleLower);
 
     let category = (contexts[0] as any) || "work";
     let goalType = "project";
     let importance = "high";
 
-    if (lower.includes("health") || lower.includes("workout") || lower.includes("gym") || lower.includes("run") || lower.includes("sleep") || lower.includes("diet")) {
+    if (/\b(health|workout|gym|run|running|sleep|diet|exercise|water|doctor|dentist|weight|walk)\b/i.test(titleLower)) {
       category = "health";
       goalType = "habit";
-    } else if (lower.includes("family") || lower.includes("personal") || lower.includes("habit") || lower.includes("read") || lower.includes("book")) {
+    } else if (/\b(family|personal|habit|read|book|home|apartment|car|passport|dog|groceries|laundry|clean)\b/i.test(titleLower)) {
       category = "personal";
-      goalType = "habit";
-    } else if (lower.includes("revenue") || lower.includes("sales") || lower.includes("client") || lower.includes("customer") || lower.includes("market") || lower.includes("business")) {
+      goalType = "project";
+    } else if (/\b(revenue|sales|client|customer|market|business|mrr|arr|leads|conversion|launch|pitch)\b/i.test(titleLower)) {
       category = "business";
       goalType = "target";
-    } else if (lower.includes("study") || lower.includes("exam") || lower.includes("learn") || lower.includes("cert") || lower.includes("degree") || lower.includes("skill")) {
+    } else if (/\b(study|exam|learn|cert|degree|skill|course|system design|interview)\b/i.test(titleLower)) {
       category = "career";
       goalType = "milestone";
-    } else if (lower.includes("save") || lower.includes("invest") || lower.includes("debt") || lower.includes("money") || lower.includes("budget")) {
+    } else if (/\b(save|invest|debt|money|budget|tax|taxes|invoice|accounting|bank)\b/i.test(titleLower)) {
       category = "finance";
       goalType = "target";
     }
 
     let deadline: string | undefined = undefined;
-    const deadlineMatch = clause.match(/\b(today|tomorrow|friday|monday|next week|end of month|q[1-4])\b/i);
+    const deadlineMatch = seg.match(/\b(today|tomorrow(?:\s+morning|\s+afternoon)?|friday|monday|tuesday|wednesday|thursday|saturday|sunday|next week|end of month|q[1-4]|by\s+[a-z]+)\b/i);
     if (deadlineMatch) {
       deadline = deadlineMatch[0].charAt(0).toUpperCase() + deadlineMatch[0].slice(1);
     }
 
     let targetValue: string | undefined = undefined;
-    const numMatch = clause.match(/\$?(\d+(?:\.\d+)?(?:k|m|%)?)/i);
-    if (numMatch && (category === "business" || category === "finance" || category === "health")) {
+    const numMatch = seg.match(/\$?(\d+(?:\.\d+)?(?:k|m|%)?)/i);
+    if (numMatch) {
       targetValue = numMatch[0];
     }
+
+    const suggestedFirstMove = `Review initial requirements and outline next action for ${title.toLowerCase().replace(/\.+$/, "")}`;
 
     goals.push({
       title,
@@ -892,24 +989,33 @@ function generateFallbackGoals(text: string, contexts: string[] = []): any[] {
       targetValue,
       deadline,
       importance,
-      notes: "Derived from your thoughts",
+      notes: "Extracted from your voice thoughts",
       isInferred: false,
+      suggestedFirstMove,
     });
   }
 
   if (goals.length === 0) {
-    const clean = text.trim().slice(0, 60);
+    const clean = cleanedText.trim().slice(0, 50);
     goals.push({
-      title: clean.length > 5 ? clean : "Primary Objective",
+      title: clean.length > 3 ? clean.charAt(0).toUpperCase() + clean.slice(1) : "Primary Focus Goal",
       category: (contexts[0] as any) || "work",
       goalType: "project",
       importance: "high",
-      notes: "Extracted from your notes",
-      isInferred: true,
+      notes: "Extracted from voice prompt",
+      isInferred: false,
+      suggestedFirstMove: "Define the next concrete 15-minute action step.",
     });
   }
 
-  return goals;
+  return {
+    goals,
+    jargonFiltered: {
+      originalWordCount: text.trim().split(/\s+/).length,
+      fillerPhrasesRemoved: Array.from(new Set(removedFillers)),
+      summary: `Filtered ${removedFillers.length} conversational filler elements and decomposed speech into ${goals.length} distinct goals.`,
+    },
+  };
 }
 
 // Helper: Generic, Context-Aware Dynamic Prioritization Fallback

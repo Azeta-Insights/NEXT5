@@ -2,11 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny all
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -19,16 +14,16 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128;
     }
 
-    // Users collection: only self can read and write
+    // Users collection: only owner can read and write their profile
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if isSignedIn() && request.auth.uid == userId;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && request.resource.data.id == userId;
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
 
-    // Goals collection
+    // Goals collection: user-scoped
     match /goals/{goalId} {
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -41,7 +36,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // Daily context collection
+    // Daily context collection: user-scoped
     match /daily_context/{contextId} {
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -53,7 +48,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // Daily recommendations collection
+    // Daily recommendations collection: user-scoped
     match /daily_recommendations/{recId} {
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -65,7 +60,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // Daily feedback collection
+    // Daily feedback collection: user-scoped
     match /daily_feedback/{feedbackId} {
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -77,7 +72,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // Memory collection
+    // Memory collection: user-scoped
     match /memory/{memoryId} {
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;

@@ -6,14 +6,8 @@ import {
   Sparkles, 
   Brain, 
   ArrowRight, 
-  Check, 
   AlertCircle, 
-  Zap, 
-  Moon, 
-  Coffee,
-  Lightbulb,
-  ShieldAlert,
-  Play
+  Zap
 } from 'lucide-react';
 import { Recommendation, DailyContext, EngineMode, FrictionDecompressionResult } from '../types';
 
@@ -32,7 +26,6 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
   recommendations,
   dailyContext,
   onSwitchMode,
-  onOpenSprintModal,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -139,35 +132,35 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/65 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
       <div 
-        className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden text-stone-900"
+        className="bg-slate-950 rounded-3xl border border-slate-800 shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden text-slate-100 selection:bg-emerald-500/20 selection:text-emerald-200"
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="p-5 sm:p-6 bg-stone-900 text-stone-50 flex items-start justify-between gap-3 border-b border-stone-800">
+        <div className="p-5 sm:p-6 bg-slate-900 text-slate-100 flex items-start justify-between gap-3 border-b border-slate-800">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-stone-800 text-amber-400 flex items-center gap-1">
-                <Brain className="w-3 h-3" />
-                PRD Section 5 & 25
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                <Brain className="w-3 h-3 text-emerald-400" />
+                Unblocker
               </span>
-              <span className="text-[10px] font-medium text-stone-400">
-                Cognitive Unblocker
+              <span className="text-[10px] font-medium text-slate-400 font-mono">
+                Turn Overwhelm Into Action
               </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-100 font-mono flex items-center gap-2">
               Voice Friction Decompressor
             </h2>
-            <p className="text-xs text-stone-400 leading-snug">
-              Speak or dump why you feel stuck. NEXT5 extracts the root friction and hands you a 5-minute starter move.
+            <p className="text-xs text-slate-400 leading-snug">
+              Speak or describe why you feel stuck. NEXT5 identifies the root cause and gives you a 5-minute starter move.
             </p>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white transition"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -183,7 +176,7 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Speak or type what's blocking you... e.g. 'I'm dreading this proposal because I don't know what pricing tier to pitch and I have zero energy right now.'"
                 rows={4}
-                className="w-full text-xs sm:text-sm p-3.5 pb-10 rounded-2xl border border-stone-300 bg-stone-50 text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-stone-900 placeholder:text-stone-400 resize-none font-medium leading-relaxed"
+                className="w-full text-xs sm:text-sm p-3.5 pb-10 rounded-2xl border border-slate-800 bg-slate-900 text-slate-100 focus:outline-hidden focus:border-emerald-400 placeholder:text-slate-600 resize-none font-medium leading-relaxed"
               />
 
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
@@ -191,10 +184,10 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
                   <button
                     type="button"
                     onClick={toggleRecording}
-                    className={`p-2 rounded-xl transition flex items-center gap-1.5 text-xs font-bold ${
+                    className={`p-2 rounded-xl transition flex items-center gap-1.5 text-xs font-bold cursor-pointer ${
                       isRecording
                         ? 'bg-rose-600 text-white animate-pulse shadow-md'
-                        : 'bg-stone-200 hover:bg-stone-300 text-stone-700'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                     }`}
                     title={isRecording ? 'Stop recording' : 'Speak friction'}
                   >
@@ -215,15 +208,15 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-stone-500 font-medium">
+              <span className="text-[11px] text-slate-500 font-medium">
                 {inputText ? `${inputText.length} characters captured` : 'Click Voice or type freely.'}
               </span>
               <button
                 onClick={decompressFriction}
                 disabled={isDecompressing || !inputText.trim()}
-                className="px-4 py-2 rounded-xl bg-stone-900 text-white text-xs font-bold hover:bg-stone-800 disabled:opacity-50 transition flex items-center gap-1.5 shadow-xs"
+                className="px-5 py-2.5 rounded-xl bg-emerald-400 text-slate-950 text-xs font-extrabold hover:bg-emerald-300 disabled:opacity-50 transition flex items-center gap-1.5 shadow-[0_0_20px_rgba(52,211,153,0.3)] cursor-pointer"
               >
-                <Sparkles className={`w-3.5 h-3.5 ${isDecompressing ? 'animate-spin text-amber-400' : ''}`} />
+                <Sparkles className={`w-3.5 h-3.5 ${isDecompressing ? 'animate-spin text-slate-950' : ''}`} />
                 {isDecompressing ? 'Diagnosing Friction...' : 'Decompress & Unblock'}
               </button>
             </div>
@@ -233,49 +226,49 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
           {result && (
             <div className="space-y-4 pt-2 animate-in fade-in duration-150">
               {/* Root Friction Callout */}
-              <div className="p-4 rounded-2xl bg-stone-100 border border-stone-200 space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3 text-amber-600" />
+              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
                   Diagnosed Root Friction
                 </span>
-                <p className="text-xs sm:text-sm font-semibold text-stone-800 leading-snug">
+                <p className="text-xs sm:text-sm font-semibold text-slate-200 leading-snug">
                   {result.rootFriction}
                 </p>
               </div>
 
               {/* 5-Minute Micro-Move Action */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-300 space-y-2.5">
+              <div className="p-4 sm:p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
-                    <Zap className="w-3.5 h-3.5 text-amber-700" />
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
                     Immediate 5-Minute Micro-Move
                   </span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 uppercase">
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 uppercase">
                     Friction-Proof
                   </span>
                 </div>
-                <p className="text-sm font-bold text-amber-950 leading-relaxed">
+                <p className="text-sm font-bold text-emerald-100 leading-relaxed font-mono">
                   "{result.fiveMinuteMicroMove}"
                 </p>
-                <p className="text-[11px] text-amber-900 font-medium">
+                <p className="text-[11px] text-emerald-300/80 font-medium">
                   {result.strategicReassurance}
                 </p>
               </div>
 
               {/* Recommended Engine Mode Switch (if applicable) */}
               {result.recommendedMode && result.recommendedMode !== 'normal' && (
-                <div className="p-3.5 rounded-2xl bg-stone-900 text-stone-50 flex items-center justify-between gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-100 flex items-center justify-between gap-3">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                    <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider block">
                       Recommended Downshift
                     </span>
-                    <p className="text-xs text-stone-300">
-                      Switch to <strong className="text-white capitalize">{result.recommendedMode.replace('_', ' ')} Mode</strong> to recalibrate expectations.
+                    <p className="text-xs text-slate-400">
+                      Switch to <strong className="text-slate-200 capitalize">{result.recommendedMode.replace('_', ' ')} Mode</strong> to recalibrate expectations.
                     </p>
                   </div>
                   <button
                     onClick={handleApplyRecommendedMode}
-                    className="px-3 py-1.5 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold hover:bg-amber-300 transition shrink-0 shadow-xs flex items-center gap-1"
+                    className="px-3.5 py-2 rounded-xl bg-amber-400 text-slate-950 text-xs font-extrabold hover:bg-amber-300 transition shrink-0 shadow-xs flex items-center gap-1 cursor-pointer"
                   >
                     <span>Switch Mode</span>
                     <ArrowRight className="w-3 h-3" />
@@ -287,13 +280,13 @@ export const VoiceFrictionModal: React.FC<VoiceFrictionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-stone-50 border-t border-stone-200 flex items-center justify-between">
-          <span className="text-[11px] text-stone-500 font-medium">
+        <div className="p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+          <span className="text-[11px] text-slate-500 font-medium">
             Paralysis is solved by shrinking the first step, not increasing pressure.
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold hover:bg-stone-100 transition"
+            className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
           >
             Close
           </button>

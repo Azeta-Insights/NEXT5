@@ -17,6 +17,7 @@ import { EndOfDayModal } from './components/EndOfDayModal';
 import { AuthModal } from './components/AuthModal';
 import { VoiceGoalBreakdownModal } from './components/VoiceGoalBreakdownModal';
 import { auth, onAuthStateChanged, FirebaseUser } from './lib/firebase';
+import { FirestoreSync } from './lib/firestoreSync';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile>(() => StorageService.getUser());
@@ -97,14 +98,32 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        const existingLocal = StorageService.getUser();
         const updatedUser: UserProfile = {
           id: fbUser.uid,
-          name: fbUser.displayName || (fbUser.isAnonymous ? 'Private Guest' : 'NEXT5 Member'),
-          email: fbUser.email || '',
-          createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+          name: fbUser.displayName || (existingLocal.name && existingLocal.name !== 'User' ? existingLocal.name : (fbUser.isAnonymous ? 'Private Guest' : 'NEXT5 Member')),
+          email: fbUser.email || existingLocal.email || '',
+          roleTitle: existingLocal.roleTitle,
+          primaryFocus: existingLocal.primaryFocus,
+          createdAt: fbUser.metadata.creationTime || existingLocal.createdAt || new Date().toISOString(),
         };
         setUser(updatedUser);
         StorageService.saveUser(updatedUser);
+
+        // Synchronize with Firestore
+        try {
+          const cloudData = await FirestoreSync.loadUserData(fbUser.uid);
+          if (cloudData.user) {
+            setUser(cloudData.user);
+            StorageService.saveUser(cloudData.user);
+          }
+          if (cloudData.goals && cloudData.goals.length > 0) {
+            setGoals(cloudData.goals);
+            cloudData.goals.forEach((g) => StorageService.addGoal(g));
+          }
+        } catch (e) {
+          console.warn('Initial cloud sync notice:', e);
+        }
       }
     });
 
@@ -295,8 +314,9 @@ export default function App() {
     });
     const updated = StorageService.getGoals();
     setGoals(updated);
-    showToast(`Outlined & added ${newGoals.length} goal${newGoals.length === 1 ? '' : 's'} from your voice prompt.`);
-    // Automatically recalculate priorities so the new goals are prioritized immediately
+    setActiveTab('today');
+    showToast(`Extracted ${newGoals.length} goal${newGoals.length === 1 ? '' : 's'}. Generating your NEXT 5 moves...`);
+    // Automatically recalculate priorities so the new goals are prioritized immediately into the Next 5 moves
     fetchPriorities(currentMode);
   };
 
@@ -352,14 +372,49 @@ export default function App() {
   // If user has not completed onboarding
   if (!isOnboardingDone) {
     return (
-      <div className="min-h-full bg-stone-50 font-sans text-stone-900">
+      <div className="min-h-full bg-slate-950 font-sans text-slate-50">
         <Onboarding 
+          user={user}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
           onComplete={handleOnboardingComplete} 
-          onSkip={() => {
-            StorageService.setOnboardingComplete(true);
-            setIsOnboardingDone(true);
+        />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          currentUser={user}
+          firebaseUser={firebaseUser}
+          onAuthSuccess={async (profile) => {
+            setUser(profile);
+            StorageService.saveUser(profile);
+            showToast(`Welcome, ${profile.name}! Your workspace is personalized.`);
+            try {
+              const cloudData = await FirestoreSync.loadUserData(profile.id);
+              if (cloudData.goals && cloudData.goals.length > 0) {
+                setGoals(cloudData.goals);
+                cloudData.goals.forEach((g) => StorageService.addGoal(g));
+              }
+            } catch (e) {
+              console.warn('Sync notice:', e);
+            }
+          }}
+          onSignOut={() => {
+            setFirebaseUser(null);
+            const guest: UserProfile = {
+              id: 'guest_' + Date.now(),
+              name: 'User',
+              email: '',
+              createdAt: new Date().toISOString(),
+            };
+            setUser(guest);
+            StorageService.saveUser(guest);
+            showToast('Signed out. Local session.');
           }}
         />
+        {toastMessage && (
+          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-slate-100 border border-slate-800 text-xs font-semibold px-4 py-2 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 flex items-center gap-2">
+            <span>{toastMessage}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -367,7 +422,7 @@ export default function App() {
   const pendingMovesCount = recommendations.filter((r) => r.status === 'pending').length;
 
   return (
-    <div className="min-h-full bg-stone-50 text-stone-900 font-sans selection:bg-stone-200">
+    <div className="min-h-full bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/20 selection:text-emerald-200">
       {/* Global Header */}
       <Header
         user={user}
@@ -383,6 +438,7 @@ export default function App() {
         {/* Tab Views */}
         {activeTab === 'today' && (
           <Next5View
+            user={user}
             recommendations={recommendations}
             dailyContext={dailyContext}
             goals={goals}
@@ -431,6 +487,7 @@ export default function App() {
 
         {activeTab === 'coach' && (
           <AiCoachView
+            user={user}
             goals={goals}
             recommendations={recommendations}
             dailyContext={dailyContext}
@@ -470,10 +527,19 @@ export default function App() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={user}
         firebaseUser={firebaseUser}
-        onAuthSuccess={(profile) => {
+        onAuthSuccess={async (profile) => {
           setUser(profile);
           StorageService.saveUser(profile);
-          showToast(`Signed in as ${profile.name}`);
+          showToast(`Welcome, ${profile.name}! Workspace personalized.`);
+          try {
+            const cloudData = await FirestoreSync.loadUserData(profile.id);
+            if (cloudData.goals && cloudData.goals.length > 0) {
+              setGoals(cloudData.goals);
+              cloudData.goals.forEach((g) => StorageService.addGoal(g));
+            }
+          } catch (e) {
+            console.warn('Sync notice:', e);
+          }
         }}
         onSignOut={() => {
           setFirebaseUser(null);
@@ -498,7 +564,7 @@ export default function App() {
 
       {/* Floating Toast Feedback */}
       {toastMessage && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-stone-50 text-xs font-semibold px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-top-2 duration-150 flex items-center gap-2">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-slate-100 border border-slate-800 text-xs font-semibold px-4 py-2 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 flex items-center gap-2">
           <span>{toastMessage}</span>
         </div>
       )}

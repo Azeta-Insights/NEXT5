@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Mic, MicOff, Check, X, Sparkles, Edit3, Trash2, Plus, 
-  ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Calendar, Target, DollarSign, Briefcase, Compass, Heart
+  ArrowRight, ArrowLeft, AlertCircle, Calendar, Target, DollarSign, Briefcase, Compass, Heart,
+  Zap
 } from 'lucide-react';
 import { Goal, GoalCategory, GoalType, GoalImportance, ExtractedGoalDraft } from '../types';
 import { SpeechEngine } from '../lib/speech';
+import { filterJargonAndExtractGoals } from '../lib/goalParser';
 
 interface VoiceGoalBreakdownModalProps {
   isOpen: boolean;
@@ -41,7 +43,6 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
 
   const speechEngineRef = useRef<SpeechEngine | null>(null);
 
-  // Initialize SpeechEngine on modal open
   useEffect(() => {
     if (isOpen) {
       setStep('record');
@@ -61,7 +62,6 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
         initialTranscript
       );
 
-      // Automatically start recording when opening
       handleStartRecording();
     } else {
       handleStopRecording();
@@ -96,15 +96,14 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
     }
   };
 
-  // Call extract-goals API
   const handleAnalyzeAndOutline = async () => {
     if (!transcript.trim()) return;
     handleStopRecording();
     setIsAnalyzing(true);
-    setAnalyzeStep('Reviewing your voice prompt...');
+    setAnalyzeStep('Reviewing your commitments & priorities...');
 
-    const timer1 = setTimeout(() => setAnalyzeStep('Breaking down every single goal stated...'), 500);
-    const timer2 = setTimeout(() => setAnalyzeStep('Extracting deadlines, targets, and categories...'), 1100);
+    const timer1 = setTimeout(() => setAnalyzeStep('Organizing your distinct goals...'), 550);
+    const timer2 = setTimeout(() => setAnalyzeStep('Drafting immediate first moves for NEXT5...'), 1150);
 
     try {
       const res = await fetch('/api/extract-goals', {
@@ -135,33 +134,18 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
         importance: (g.importance as GoalImportance) || 'high',
         notes: g.notes || 'Outlined from your voice prompt',
         isInferred: Boolean(g.isInferred),
-        isConfirmedByUser: true,
+        suggestedFirstMove: g.suggestedFirstMove || undefined,
+        isConfirmedByUser: false,
       }));
 
       setExtractedDrafts(drafts);
       setSelectedIds(new Set(drafts.map((d) => d.tempId)));
       setStep('outline');
     } catch (err: any) {
-      console.warn('Voice goal extraction fallback:', err);
-      // Fallback: split on clauses so user never loses their goals
-      const clauses = transcript
-        .split(/\n+|;|\. |\band\b|\balso\b|\bthen\b|\bplus\b/i)
-        .map((c) => c.trim())
-        .filter((c) => c.length > 3);
-
-      const fallbackDrafts: ExtractedGoalDraft[] = (clauses.length > 0 ? clauses : [transcript]).map((clause, idx) => ({
-        tempId: `draft_${Date.now()}_${idx}`,
-        title: clause.charAt(0).toUpperCase() + clause.slice(1),
-        category: 'work',
-        goalType: 'project',
-        importance: 'high',
-        notes: 'Outlined from your voice prompt',
-        isInferred: false,
-        isConfirmedByUser: true,
-      }));
-
-      setExtractedDrafts(fallbackDrafts);
-      setSelectedIds(new Set(fallbackDrafts.map((d) => d.tempId)));
+      console.warn('Backend extraction fallback, parsing locally:', err);
+      const localResult = filterJargonAndExtractGoals(transcript);
+      setExtractedDrafts(localResult.goals);
+      setSelectedIds(new Set(localResult.goals.map((d) => d.tempId)));
       setStep('outline');
     } finally {
       clearTimeout(timer1);
@@ -170,13 +154,13 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
     }
   };
 
-  const handleToggleSelect = (id: string) => {
+  const handleToggleSelect = (tempId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(tempId)) {
+        next.delete(tempId);
       } else {
-        next.add(id);
+        next.add(tempId);
       }
       return next;
     });
@@ -190,45 +174,43 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
     }
   };
 
-  const handleUpdateDraft = (id: string, updates: Partial<ExtractedGoalDraft>) => {
+  const handleUpdateDraft = (tempId: string, updates: Partial<ExtractedGoalDraft>) => {
     setExtractedDrafts((prev) =>
-      prev.map((d) => (d.tempId === id ? { ...d, ...updates } : d))
+      prev.map((d) => (d.tempId === tempId ? { ...d, ...updates } : d))
     );
   };
 
-  const handleDeleteDraft = (id: string) => {
-    setExtractedDrafts((prev) => prev.filter((d) => d.tempId !== id));
+  const handleDeleteDraft = (tempId: string) => {
+    setExtractedDrafts((prev) => prev.filter((d) => d.tempId !== tempId));
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.delete(id);
+      next.delete(tempId);
       return next;
     });
-    if (editingId === id) setEditingId(null);
   };
 
   const handleAddManualDraft = () => {
     const newDraft: ExtractedGoalDraft = {
-      tempId: `draft_${Date.now()}_new`,
-      title: 'New Goal',
+      tempId: `draft_${Date.now()}_manual`,
+      title: 'New Priority Goal',
       category: 'work',
-      goalType: 'project',
+      goalType: 'target',
       importance: 'high',
-      notes: 'Manually added',
       isInferred: false,
       isConfirmedByUser: true,
     };
-    setExtractedDrafts((prev) => [...prev, newDraft]);
+    setExtractedDrafts((prev) => [newDraft, ...prev]);
     setSelectedIds((prev) => new Set([...prev, newDraft.tempId]));
     setEditingId(newDraft.tempId);
   };
 
   const handleConfirmAndSave = () => {
-    const chosenDrafts = extractedDrafts.filter((d) => selectedIds.has(d.tempId));
-    if (chosenDrafts.length === 0) return;
+    const confirmed = extractedDrafts.filter((d) => selectedIds.has(d.tempId));
+    if (confirmed.length === 0) return;
 
-    const formattedGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[] = chosenDrafts.map((d) => ({
+    const finalGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[] = confirmed.map((d) => ({
       userId: 'user_active',
-      title: d.title.trim(),
+      title: d.title,
       category: d.category,
       goalType: d.goalType,
       targetValue: d.targetValue,
@@ -238,30 +220,30 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
       importance: d.importance,
       status: 'active',
       confirmed: true,
-      source: 'ai_extracted',
+      source: d.isInferred ? 'ai_extracted' : 'user',
       notes: d.notes,
     }));
 
-    onConfirmGoals(formattedGoals);
+    onConfirmGoals(finalGoals);
     onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-stone-50 rounded-2xl max-w-2xl w-full max-h-[90vh] shadow-2xl border border-stone-200 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-slate-950 rounded-2xl max-w-2xl w-full max-h-[90vh] shadow-2xl border border-slate-800 flex flex-col overflow-hidden text-slate-100 selection:bg-emerald-500/20 selection:text-emerald-200">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-stone-200 bg-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-4 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-stone-900 text-stone-50 flex items-center justify-center">
-              <Mic className="w-4 h-4 text-red-400" />
+            <div className="w-8 h-8 rounded-xl bg-slate-800 text-emerald-400 flex items-center justify-center border border-slate-700">
+              <Mic className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-stone-900">
+              <h2 className="text-base font-extrabold text-slate-100 font-mono">
                 {step === 'record' ? 'Speak Your Goals (Voice Breakdown)' : 'Outlined Goals from Voice Prompt'}
               </h2>
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-slate-400">
                 {step === 'record'
                   ? 'Say everything you want to accomplish. NEXT5 breaks it down into individual goals.'
                   : `Outlined ${extractedDrafts.length} goal${extractedDrafts.length === 1 ? '' : 's'} based on what you said.`}
@@ -270,7 +252,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -281,15 +263,15 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
           {/* STEP 1: VOICE INPUT & TRANSCRIPTION */}
           {step === 'record' && (
             <div className="space-y-4">
-              {/* Audio visualizer / recording status banner */}
+              {/* Audio recording status banner */}
               <div className={`p-4 rounded-xl border transition ${
                 isListening
-                  ? 'bg-red-50/70 border-red-200 text-red-900'
-                  : 'bg-stone-100/70 border-stone-200 text-stone-700'
+                  ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300'
+                  : 'bg-slate-900/60 border-slate-800 text-slate-300'
               } flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-3.5 h-3.5 rounded-full ${
-                    isListening ? 'bg-red-600 animate-ping' : 'bg-stone-400'
+                    isListening ? 'bg-emerald-400 animate-ping shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-slate-700'
                   }`} />
                   <span className="text-xs font-semibold">
                     {isListening ? 'Listening... Speak as many goals and tasks as you want' : 'Microphone paused'}
@@ -301,7 +283,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                     <button
                       type="button"
                       onClick={handleStopRecording}
-                      className="px-3 py-1.5 rounded-lg bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition flex items-center gap-1.5 shadow-2xs"
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs font-bold hover:bg-slate-750 transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <MicOff className="w-3.5 h-3.5" />
                       Pause Mic
@@ -310,7 +292,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                     <button
                       type="button"
                       onClick={handleStartRecording}
-                      className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition flex items-center gap-1.5 shadow-2xs"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-400 text-slate-950 text-xs font-extrabold hover:bg-emerald-300 transition flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(52,211,153,0.4)]"
                     >
                       <Mic className="w-3.5 h-3.5" />
                       Resume Mic
@@ -319,32 +301,32 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                 </div>
               </div>
 
-              {/* Permission / error alerts */}
+              {/* Permission alerts */}
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/40 text-amber-200 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold">{errorMsg}</span>
+                    <span className="font-semibold text-amber-300">{errorMsg}</span>
                     {permissionDenied && (
-                      <p className="text-[11px] text-amber-800 mt-1">
-                        Please check your browser permissions to allow microphone access, or type/paste your thoughts below.
+                      <p className="text-[11px] text-amber-300/80 mt-1">
+                        Please check your browser permissions to allow microphone access, or type your thoughts below.
                       </p>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Live Transcript / Thought Box */}
+              {/* Live Transcript */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <label className="font-bold text-stone-800 flex items-center gap-1.5">
+                  <label className="font-bold text-slate-300 flex items-center gap-1.5">
                     <span>Your Voice Transcript / Goals Dump:</span>
                   </label>
                   {transcript && (
                     <button
                       type="button"
                       onClick={handleClearTranscript}
-                      className="text-stone-400 hover:text-stone-600 text-[11px] underline"
+                      className="text-slate-500 hover:text-slate-300 text-[11px] underline cursor-pointer"
                     >
                       Clear
                     </button>
@@ -354,11 +336,11 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                 <textarea
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
-                  placeholder="Speak or type everything you want to do... (e.g. 'Need to finish the Q3 financial presentation by Friday, go to the gym 3 times this week, call the accountant about corporate taxes, review the candidate resume, and study system design.')"
+                  placeholder="Speak or type everything you want to do... (e.g. 'Need to finish the Q3 financial presentation by Friday, go to the gym 3 times this week, review quarterly budget, and close deal with Acme.')"
                   rows={6}
-                  className="w-full p-3.5 rounded-xl border border-stone-300 bg-white text-stone-900 text-sm focus:ring-2 focus:ring-stone-900 focus:border-stone-900 outline-none leading-relaxed placeholder:text-stone-400"
+                  className="w-full p-3.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-100 text-sm focus:outline-hidden focus:border-emerald-500 leading-relaxed placeholder:text-slate-600"
                 />
-                <div className="flex justify-between items-center text-[11px] text-stone-400">
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
                   <span>Tip: Mention deadlines, target numbers, or habits as you speak.</span>
                   <span>{transcript.length} characters</span>
                 </div>
@@ -369,12 +351,27 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
           {/* STEP 2: OUTLINED GOALS REVIEW */}
           {step === 'outline' && (
             <div className="space-y-4">
-              {/* User transcript quote snippet */}
-              <div className="p-3 rounded-xl bg-stone-100/80 border border-stone-200/80 text-xs text-stone-600 space-y-1">
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+              {/* Summary Banner */}
+              <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between animate-in fade-in duration-150">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="font-bold text-emerald-200">
+                    {extractedDrafts.length} distinct {extractedDrafts.length === 1 ? 'goal' : 'goals'} identified
+                  </span>
+                </div>
+                <span className="text-[11px] text-emerald-400 font-medium">
+                  Review & select below
+                </span>
+              </div>
+
+              {/* User transcript quote */}
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                   FROM YOUR VOICE PROMPT:
                 </span>
-                <p className="italic text-stone-700 line-clamp-2">“{transcript}”</p>
+                <p className="italic text-slate-300 line-clamp-2">"{transcript}"</p>
               </div>
 
               {/* Selection Summary bar */}
@@ -383,12 +380,12 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                   <button
                     type="button"
                     onClick={handleToggleSelectAll}
-                    className="text-xs font-semibold text-stone-700 hover:text-stone-900 underline underline-offset-2"
+                    className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 underline underline-offset-2 cursor-pointer"
                   >
                     {selectedIds.size === extractedDrafts.length ? 'Deselect All' : 'Select All'}
                   </button>
-                  <span className="text-stone-300">•</span>
-                  <span className="text-xs font-bold text-stone-900">
+                  <span className="text-slate-600">•</span>
+                  <span className="text-xs font-bold text-slate-300">
                     {selectedIds.size} of {extractedDrafts.length} goals selected
                   </span>
                 </div>
@@ -396,16 +393,16 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                 <button
                   type="button"
                   onClick={handleAddManualDraft}
-                  className="flex items-center gap-1 text-xs font-semibold text-stone-700 hover:text-stone-900 px-2.5 py-1 rounded-lg border border-stone-200 hover:bg-stone-100 transition"
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-slate-100 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-850 transition cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
                   Add Another Goal
                 </button>
               </div>
 
               {/* Outlined Goals Cards */}
               <div className="space-y-3">
-                {extractedDrafts.map((draft, idx) => {
+                {extractedDrafts.map((draft) => {
                   const isSelected = selectedIds.has(draft.tempId);
                   const isEditing = editingId === draft.tempId;
                   const CatIcon = CATEGORY_CONFIG[draft.category]?.icon || Target;
@@ -415,8 +412,8 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                       key={draft.tempId}
                       className={`p-4 rounded-xl border transition ${
                         isSelected
-                          ? 'border-stone-300 bg-white shadow-xs'
-                          : 'border-stone-200 bg-stone-50/60 opacity-60'
+                          ? 'border-emerald-500/50 bg-slate-900 shadow-xs'
+                          : 'border-slate-800 bg-slate-950/60 opacity-60'
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -424,10 +421,10 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                         <button
                           type="button"
                           onClick={() => handleToggleSelect(draft.tempId)}
-                          className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${
+                          className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 cursor-pointer ${
                             isSelected
-                              ? 'bg-stone-900 border-stone-900 text-white'
-                              : 'border-stone-300 bg-white hover:border-stone-400'
+                              ? 'bg-emerald-400 border-emerald-400 text-slate-950 font-bold'
+                              : 'border-slate-700 bg-slate-900 hover:border-slate-500'
                           }`}
                         >
                           {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -441,7 +438,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                                 type="text"
                                 value={draft.title}
                                 onChange={(e) => handleUpdateDraft(draft.tempId, { title: e.target.value })}
-                                className="w-full text-sm font-bold text-stone-900 border-b border-stone-400 pb-1 focus:outline-none"
+                                className="w-full text-sm font-bold text-slate-100 border-b border-emerald-400 pb-1 focus:outline-hidden bg-transparent"
                                 placeholder="Goal title"
                                 autoFocus
                               />
@@ -453,10 +450,10 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                                     key={cat}
                                     type="button"
                                     onClick={() => handleUpdateDraft(draft.tempId, { category: cat })}
-                                    className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize transition ${
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize transition cursor-pointer ${
                                       draft.category === cat
-                                        ? 'bg-stone-900 text-white'
-                                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                                        ? 'bg-emerald-400 text-slate-950 font-extrabold'
+                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
                                     }`}
                                   >
                                     {cat}
@@ -467,23 +464,23 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                               {/* Target / Deadline inputs */}
                               <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div>
-                                  <label className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Target Value</label>
+                                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Target Value</label>
                                   <input
                                     type="text"
                                     value={draft.targetValue || ''}
                                     onChange={(e) => handleUpdateDraft(draft.tempId, { targetValue: e.target.value })}
                                     placeholder="e.g. 3 times/week or $5M"
-                                    className="w-full text-xs p-1.5 border rounded-lg border-stone-200"
+                                    className="w-full text-xs p-1.5 border rounded-lg border-slate-700 bg-slate-950 text-slate-100"
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Deadline</label>
+                                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Deadline</label>
                                   <input
                                     type="text"
                                     value={draft.deadline || ''}
                                     onChange={(e) => handleUpdateDraft(draft.tempId, { deadline: e.target.value })}
                                     placeholder="e.g. Friday, Dec 31"
-                                    className="w-full text-xs p-1.5 border rounded-lg border-stone-200"
+                                    className="w-full text-xs p-1.5 border rounded-lg border-slate-700 bg-slate-950 text-slate-100"
                                   />
                                 </div>
                               </div>
@@ -491,35 +488,46 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                           ) : (
                             <div>
                               <div className="flex items-center justify-between gap-2">
-                                <h4 className="text-sm font-bold text-stone-900 leading-snug">
+                                <h4 className="text-sm font-bold text-slate-100 leading-snug">
                                   {draft.title}
                                 </h4>
                               </div>
 
                               {/* Badges */}
                               <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 capitalize">
-                                  <CatIcon className="w-3 h-3 text-stone-500" />
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 capitalize">
+                                  <CatIcon className="w-3 h-3 text-emerald-400" />
                                   {draft.category}
                                 </span>
 
-                                <span className="text-[10px] text-stone-500 uppercase tracking-wider font-semibold">
+                                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold font-mono">
                                   {draft.goalType}
                                 </span>
 
                                 {draft.deadline && (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
-                                    <Calendar className="w-3 h-3 text-amber-600" />
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-500/30">
+                                    <Calendar className="w-3 h-3 text-amber-400" />
                                     {draft.deadline}
                                   </span>
                                 )}
 
                                 {draft.targetValue && (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-stone-100 text-stone-800">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-200">
                                     Target: {draft.targetValue}
                                   </span>
                                 )}
                               </div>
+
+                              {/* Suggested Immediate Move */}
+                              {draft.suggestedFirstMove && (
+                                <div className="mt-2.5 p-2 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 flex items-start gap-1.5">
+                                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                                  <div>
+                                    <span className="font-bold text-slate-100">First move for NEXT5: </span>
+                                    <span className="text-slate-400">{draft.suggestedFirstMove}</span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -529,7 +537,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                           <button
                             type="button"
                             onClick={() => setEditingId(isEditing ? null : draft.tempId)}
-                            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition cursor-pointer"
                             title={isEditing ? 'Done editing' : 'Edit goal'}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -538,7 +546,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                           <button
                             type="button"
                             onClick={() => handleDeleteDraft(draft.tempId)}
-                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition cursor-pointer"
                             title="Delete goal"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -554,13 +562,13 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-stone-200 bg-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 border-t border-slate-800 bg-slate-900/80 flex items-center justify-between shrink-0">
           {step === 'record' ? (
             <>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-stone-600 hover:text-stone-900 text-xs font-semibold hover:bg-stone-100 transition"
+                className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -569,18 +577,18 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                 type="button"
                 disabled={!transcript.trim() || isAnalyzing}
                 onClick={handleAnalyzeAndOutline}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition disabled:opacity-40 shadow-sm"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-300 text-slate-950 text-xs font-extrabold hover:from-emerald-300 hover:to-teal-200 transition disabled:opacity-40 shadow-[0_0_20px_rgba(52,211,153,0.3)] cursor-pointer"
               >
                 {isAnalyzing ? (
                   <>
-                    <Sparkles className="w-4 h-4 animate-spin text-stone-300" />
+                    <Sparkles className="w-4 h-4 animate-spin text-slate-950" />
                     <span>{analyzeStep}</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <Sparkles className="w-4 h-4 text-slate-950" />
                     <span>Review Voice & Outline Goals</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-3.5 h-3.5 stroke-[3]" />
                   </>
                 )}
               </button>
@@ -590,7 +598,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
               <button
                 type="button"
                 onClick={() => setStep('record')}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-stone-600 hover:text-stone-900 text-xs font-semibold hover:bg-stone-100 transition"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Back to Voice
@@ -600,7 +608,7 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-2 rounded-xl text-stone-500 hover:text-stone-800 text-xs font-semibold"
+                  className="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -609,10 +617,10 @@ export const VoiceGoalBreakdownModal: React.FC<VoiceGoalBreakdownModalProps> = (
                   type="button"
                   disabled={selectedIds.size === 0}
                   onClick={handleConfirmAndSave}
-                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition disabled:opacity-40 shadow-sm"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-300 text-slate-950 text-xs font-extrabold hover:from-emerald-300 hover:to-teal-200 transition disabled:opacity-40 shadow-[0_0_20px_rgba(52,211,153,0.3)] cursor-pointer"
                 >
-                  <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                  <span>Add {selectedIds.size} Goal{selectedIds.size === 1 ? '' : 's'} to Workspace</span>
+                  <Sparkles className="w-4 h-4 text-slate-950" />
+                  <span>Create Next 5 Moves from {selectedIds.size} Goal{selectedIds.size === 1 ? '' : 's'}</span>
                 </button>
               </div>
             </>

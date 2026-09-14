@@ -4,21 +4,17 @@ import {
   Auth, 
   signInAnonymously, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
   GoogleAuthProvider, 
   signOut as fbSignOut, 
   onAuthStateChanged,
   User as FirebaseUser 
 } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
-
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyB16Ic_RNzb8e5kyxQr2a6BWpeiFaSyIig',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'buoyant-aggregator-kgmzr.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'buoyant-aggregator-kgmzr',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'buoyant-aggregator-kgmzr.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '931790837413',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:931790837413:web:9a8bc68658ca2e8da09f4c',
-};
+import { getFirestore, Firestore, doc, getDocFromServer } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 let app: FirebaseApp;
 let auth: Auth;
@@ -27,16 +23,20 @@ let db: Firestore;
 try {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  db = getFirestore(app);
+  // Connect to the specific database if a custom ID is provided, otherwise default database
+  db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId.trim() !== ''
+    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+    : getFirestore(app);
 } catch (error) {
   console.warn('Firebase initialization note (running in offline/resilient mode):', error);
   try {
-    // If provided config failed, safely initialize a placeholder app that prevents uncaught crash
     app = getApps().length === 0 
-      ? initializeApp({ apiKey: 'AIzaSyB16Ic_RNzb8e5kyxQr2a6BWpeiFaSyIig', projectId: 'next5-app' }) 
+      ? initializeApp(firebaseConfig) 
       : getApp();
     auth = getAuth(app);
-    db = getFirestore(app);
+    db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId.trim() !== ''
+      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+      : getFirestore(app);
   } catch (fallbackError) {
     console.warn('Firebase fallback initialization note:', fallbackError);
     auth = {} as Auth;
@@ -44,14 +44,36 @@ try {
   }
 }
 
+// Test Firestore connection as specified in Firebase guidelines
+async function testConnection() {
+  try {
+    if (db && typeof db === 'object') {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+testConnection();
+
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 export { 
   app, 
   auth, 
   db, 
+  firebaseConfig,
   signInAnonymously, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
   googleProvider, 
   fbSignOut, 
   onAuthStateChanged 

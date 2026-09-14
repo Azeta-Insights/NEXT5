@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Sparkles, RefreshCw, User, HelpCircle, Layers, ChevronDown, Database, Keyboard, Headphones, Brain, Shield } from 'lucide-react';
+import { Sparkles, RefreshCw, User, ChevronDown, Database, Keyboard, Headphones, Brain } from 'lucide-react';
 import { UserProfile } from '../types';
+import { Next5Logo } from './LandingPage';
 
 interface HeaderProps {
   user: UserProfile;
@@ -31,40 +32,52 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
+  const isUserSignedIn = Boolean(user.email || (user.name && user.name !== 'User' && user.name !== 'Private Guest'));
+
   return (
-    <header className="sticky top-0 z-30 bg-stone-50/90 backdrop-blur-md border-b border-stone-200">
+    <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
       <div className="max-w-4xl mx-auto px-4 py-2.5 flex items-center justify-between">
         {/* Clean NEXT5 Brand */}
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-stone-900 text-stone-50 font-black text-xs tracking-tight shadow-xs">
-            5
-          </div>
+          <Next5Logo size={30} className="shrink-0" />
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-stone-900 tracking-tight text-base leading-none">
-              NEXT5
+            <span className="font-extrabold text-slate-50 tracking-tight text-base leading-none font-mono">
+              NEXT<span className="text-emerald-400">5</span>
             </span>
-            <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
               Your next five moves.
             </span>
           </div>
         </div>
 
-        {/* Profile & Account Menu */}
+        {/* Profile & Account Navigation */}
         <div className="flex items-center gap-2 relative">
-          {/* Unified Profile & Workspace Menu */}
+          {!isUserSignedIn && onOpenAuth && (
+            <button
+              id="header-direct-login-btn"
+              onClick={onOpenAuth}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-300 hover:from-emerald-300 hover:to-teal-200 text-slate-950 text-xs font-extrabold transition shadow-xs cursor-pointer"
+              title="Sign in"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
+
+          {/* User Profile & Menu Button */}
           <button
             id="header-profile-menu-btn"
             onClick={() => setShowMenu(!showMenu)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-800 text-xs font-medium transition shadow-2xs"
-            title="Profile, Tools & Workspace Settings"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-xs font-medium transition cursor-pointer"
+            title="Profile and workspace settings"
           >
-            <div className="w-5 h-5 rounded-full bg-stone-900 text-stone-50 flex items-center justify-center text-[10px] font-bold">
-              {user.name.charAt(0).toUpperCase()}
+            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold border border-emerald-500/30">
+              {user.name && user.name !== 'User' ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
-            <span className="hidden sm:inline text-stone-700 font-semibold text-xs max-w-[100px] truncate">
-              {user.name.split(' ')[0]}
+            <span className="hidden sm:inline text-slate-200 font-semibold text-xs max-w-[120px] truncate">
+              {user.name && user.name !== 'User' ? user.name.split(' ')[0] : 'Workspace'}
             </span>
-            <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
           {/* Dropdown Menu */}
@@ -74,30 +87,35 @@ export const Header: React.FC<HeaderProps> = ({
                 className="fixed inset-0 z-40"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute right-0 top-11 w-72 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                {/* User info & Account */}
-                <div className="px-3.5 py-2 border-b border-stone-100">
-                  <div className="text-xs font-bold text-stone-900 truncate">{user.name}</div>
-                  <div className="text-[11px] text-stone-400 truncate">{user.email || 'Private session'}</div>
+              <div className="absolute right-0 top-11 w-72 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 py-2 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-100">
+                {/* User info & Profile action */}
+                <div className="px-3.5 py-2.5 border-b border-slate-800/80">
+                  <div className="text-xs font-bold text-slate-100 truncate">
+                    {user.name && user.name !== 'User' ? user.name : 'Personal Workspace'}
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate">
+                    {user.email || 'Local workspace'}
+                  </div>
                   {onOpenAuth && (
                     <button
+                      id="menu-account-btn"
                       onClick={() => {
                         onOpenAuth();
                         setShowMenu(false);
                       }}
-                      className="mt-2 w-full text-left flex items-center justify-between text-xs font-semibold text-stone-700 hover:text-stone-950 p-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 transition"
+                      className="mt-2.5 w-full text-left flex items-center justify-between text-xs font-semibold text-slate-200 hover:text-emerald-300 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 transition border border-slate-700"
                     >
-                      <span className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-stone-500" />
-                        Account & Cloud Sync
+                      <span className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{isUserSignedIn ? 'Profile Settings' : 'Sign In'}</span>
                       </span>
-                      <ChevronDown className="w-3 h-3 text-stone-400 -rotate-90" />
+                      <ChevronDown className="w-3 h-3 text-slate-400 -rotate-90" />
                     </button>
                   )}
                 </div>
 
-                {/* Productivity & Voice Tools */}
-                <div className="py-1 border-b border-stone-100">
+                {/* Productivity Tools */}
+                <div className="py-1 border-b border-slate-800/80">
                   {onOpenAudioBriefing && (
                     <button
                       id="menu-audio-briefing-btn"
@@ -105,13 +123,13 @@ export const Header: React.FC<HeaderProps> = ({
                         onOpenAudioBriefing();
                         setShowMenu(false);
                       }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center justify-between transition"
+                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center justify-between transition"
                     >
                       <span className="flex items-center gap-2">
-                        <Headphones className="w-3.5 h-3.5 text-stone-500" />
+                        <Headphones className="w-3.5 h-3.5 text-emerald-400" />
                         Executive Audio Briefing
                       </span>
-                      <kbd className="text-[10px] font-mono bg-stone-100 px-1 rounded text-stone-500 border border-stone-200">A</kbd>
+                      <kbd className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">A</kbd>
                     </button>
                   )}
 
@@ -122,13 +140,13 @@ export const Header: React.FC<HeaderProps> = ({
                         onOpenVoiceFriction();
                         setShowMenu(false);
                       }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center justify-between transition"
+                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center justify-between transition"
                     >
                       <span className="flex items-center gap-2">
-                        <Brain className="w-3.5 h-3.5 text-stone-500" />
+                        <Brain className="w-3.5 h-3.5 text-emerald-400" />
                         Voice Friction Decompressor
                       </span>
-                      <kbd className="text-[10px] font-mono bg-stone-100 px-1 rounded text-stone-500 border border-stone-200">V</kbd>
+                      <kbd className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">V</kbd>
                     </button>
                   )}
 
@@ -138,13 +156,13 @@ export const Header: React.FC<HeaderProps> = ({
                         onOpenWeeklyDebrief();
                         setShowMenu(false);
                       }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center justify-between transition"
+                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center justify-between transition"
                     >
                       <span className="flex items-center gap-2">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                         Weekly Strategic Reset
                       </span>
-                      <kbd className="text-[10px] font-mono bg-stone-100 px-1 rounded text-stone-500 border border-stone-200">W</kbd>
+                      <kbd className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">W</kbd>
                     </button>
                   )}
 
@@ -154,9 +172,9 @@ export const Header: React.FC<HeaderProps> = ({
                         onOpenExportImport();
                         setShowMenu(false);
                       }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2 transition"
+                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center gap-2 transition"
                     >
-                      <Database className="w-3.5 h-3.5 text-stone-500" />
+                      <Database className="w-3.5 h-3.5 text-slate-400" />
                       Backup & Restore Data
                     </button>
                   )}
@@ -167,28 +185,28 @@ export const Header: React.FC<HeaderProps> = ({
                         onOpenKeyboardShortcuts();
                         setShowMenu(false);
                       }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-stone-700 hover:bg-stone-50 flex items-center justify-between transition"
+                      className="w-full text-left px-3.5 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center justify-between transition"
                     >
                       <span className="flex items-center gap-2">
-                        <Keyboard className="w-3.5 h-3.5 text-stone-500" />
+                        <Keyboard className="w-3.5 h-3.5 text-slate-400" />
                         Keyboard Shortcuts
                       </span>
-                      <kbd className="text-[10px] font-mono bg-stone-100 px-1 rounded text-stone-500 border border-stone-200">?</kbd>
+                      <kbd className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">?</kbd>
                     </button>
                   )}
                 </div>
 
-                <div className="border-t border-stone-100 pt-1">
+                <div className="pt-1">
                   {onResetAll && (
                     <button
                       onClick={() => {
                         onResetAll();
                         setShowMenu(false);
                       }}
-                      className="w-full text-left px-3.5 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-1.5 transition"
+                      className="w-full text-left px-3.5 py-2 text-xs text-rose-400 hover:bg-rose-950/30 flex items-center gap-2 transition"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      Reset & Start Fresh
+                      Reset Workspace
                     </button>
                   )}
                 </div>

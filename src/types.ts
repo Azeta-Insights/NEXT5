@@ -97,6 +97,8 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  roleTitle?: string;
+  primaryFocus?: string;
   createdAt: string;
   preferences?: {
     defaultTime?: AvailableTimeOption;
@@ -119,6 +121,7 @@ export interface ExtractedGoalDraft {
   notes?: string;
   isInferred: boolean; // Must distinguish confirmed vs inferred
   isConfirmedByUser: boolean;
+  suggestedFirstMove?: string;
 }
 
 export interface PrioritizationWeights {

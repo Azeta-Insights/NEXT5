@@ -14,14 +14,20 @@ import {
   Briefcase,
   Compass,
   Heart,
-  HelpCircle
+  HelpCircle,
+  Zap,
+  CheckCircle2,
+  User
 } from 'lucide-react';
-import { Goal, GoalCategory, ExtractedGoalDraft, GoalType, GoalImportance } from '../types';
+import { Goal, GoalCategory, ExtractedGoalDraft, GoalType, GoalImportance, UserProfile } from '../types';
 import { VoiceModal } from './VoiceModal';
+import { filterJargonAndExtractGoals } from '../lib/goalParser';
+import { LandingPage, Next5Logo } from './LandingPage';
 
 interface OnboardingProps {
+  user?: UserProfile;
+  onOpenAuth?: () => void;
   onComplete: (confirmedGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
-  onSkip?: () => void;
 }
 
 const CATEGORY_META: Record<GoalCategory, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -33,7 +39,7 @@ const CATEGORY_META: Record<GoalCategory, { label: string; icon: React.Component
   finance: { label: 'Finance', icon: DollarSign },
 };
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ user, onOpenAuth, onComplete }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [inputText, setInputText] = useState('');
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -86,20 +92,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
       setExtractedGoals(drafts);
       setStep(3); // Advance to user confirmation screen
     } catch (err: any) {
-      console.warn('Extraction fallback triggered:', err);
-      // Fallback heuristics
-      setExtractedGoals([
-        {
-          tempId: `draft_${Date.now()}_0`,
-          title: textToExtract.slice(0, 80),
-          category: 'work',
-          goalType: 'project',
-          importance: 'high',
-          notes: 'Extracted directly from your input',
-          isInferred: true,
-          isConfirmedByUser: false,
-        },
-      ]);
+      console.warn('Extraction fallback triggered, using smart client parser:', err);
+      const parsed = filterJargonAndExtractGoals(textToExtract);
+      setExtractedGoals(parsed.goals);
       setStep(3);
     } finally {
       clearTimeout(timer1);
@@ -138,8 +133,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
   };
 
   const handleConfirmAll = () => {
+    const activeUserId = user?.id || 'user_active';
     const finalGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[] = extractedGoals.map((d) => ({
-      userId: 'user_active',
+      userId: activeUserId,
       title: d.title,
       category: d.category,
       goalType: d.goalType,
@@ -157,135 +153,119 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
     onComplete(finalGoals);
   };
 
+  if (step === 1) {
+    return (
+      <LandingPage 
+        user={user}
+        onGetStarted={() => setStep(2)} 
+        onOpenAuth={onOpenAuth}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col justify-center px-4 py-8 max-w-xl mx-auto">
-      {/* SCREEN 1: Welcome & Value Proposition */}
-      {step === 1 && (
-        <div className="flex flex-col items-start gap-6 animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-stone-900 text-stone-50 font-extrabold text-lg shadow-sm">
-              5
+    <div className="relative min-h-screen bg-slate-950 text-slate-50 flex flex-col justify-center px-4 py-8 max-w-2xl mx-auto selection:bg-emerald-500/20 selection:text-emerald-200">
+      {/* Background radial glow */}
+      <div 
+        className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(16,185,129,0.15),transparent_70%)]" 
+        aria-hidden="true"
+      />
+
+      {/* Persistent Obsidian Header for Step 2 & 3 */}
+      <div className="relative z-10 flex items-center justify-between pb-6 mb-6 border-b border-white/[0.08]">
+        <div className="flex items-center gap-3">
+          <Next5Logo size={36} className="shrink-0" />
+          <div>
+            <div className="font-extrabold tracking-tight text-lg text-slate-100 font-mono">
+              NEXT<span className="text-emerald-400">5</span>
             </div>
-            <span className="text-xl font-bold tracking-tight text-stone-900">NEXT5</span>
-          </div>
-
-          <div className="space-y-2.5">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-stone-900 tracking-tight leading-tight">
-              Your next five moves.
-            </h1>
-            <p className="text-stone-600 text-base sm:text-lg leading-relaxed max-w-md">
-              You don’t need to figure everything out. Just know what matters next.
-            </p>
-          </div>
-
-          <div className="w-full p-4 rounded-xl bg-stone-100/90 border border-stone-200/90 text-stone-700 text-xs sm:text-sm space-y-2">
-            <div className="font-semibold text-stone-900 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-stone-800" />
-              How NEXT5 Works:
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-2">
+              <span>{step === 2 ? 'Step 1 of 2: Goal Input' : 'Step 2 of 2: Confirm Moves'}</span>
+              {user && user.name && user.name !== 'User' && (
+                <span className="text-emerald-400 font-semibold">• {user.name}</span>
+              )}
             </div>
-            <ul className="space-y-1.5 text-stone-600 pl-1">
-              <li className="flex items-start gap-2">
-                <span className="text-stone-400 font-bold">•</span>
-                <span><strong>No rigid to-do lists:</strong> NEXT5 dynamically calculates your highest-leverage actions based on your actual time and energy.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-stone-400 font-bold">•</span>
-                <span><strong>Negative constraints:</strong> It explicitly tells you what <em>not</em> to do today to avoid getting trapped in busywork.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-stone-400 font-bold">•</span>
-                <span><strong>You stay in control:</strong> You decide. NEXT5 does the ruthless organizing.</span>
-              </li>
-            </ul>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
-            <button
-              id="onboarding-get-started-btn"
-              onClick={() => setStep(2)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-stone-900 text-stone-50 font-bold text-sm hover:bg-stone-800 transition shadow-sm"
-            >
-              Get started
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            {onSkip && (
-              <button
-                type="button"
-                onClick={onSkip}
-                className="w-full sm:w-auto text-xs font-semibold text-stone-500 hover:text-stone-900 px-3 py-2 transition"
-              >
-                Start with a blank slate
-              </button>
-            )}
           </div>
         </div>
-      )}
+
+        <div className="flex items-center gap-2">
+          {onOpenAuth && (!user?.email || user?.name === 'User') && (
+            <button
+              type="button"
+              onClick={onOpenAuth}
+              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-500/10 transition flex items-center gap-1.5"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* SCREEN 2: Thought Dump (Voice + Text) */}
       {step === 2 && (
-        <div className="flex flex-col gap-5 animate-in fade-in duration-200">
+        <div className="relative z-10 flex flex-col gap-5 animate-in fade-in duration-200">
           <button
             onClick={() => setStep(1)}
-            className="text-stone-400 hover:text-stone-700 flex items-center gap-1 text-xs self-start"
+            className="text-slate-400 hover:text-slate-200 flex items-center gap-1.5 text-xs self-start px-2.5 py-1 rounded-lg hover:bg-white/5 transition"
           >
-            <ArrowLeft className="w-4 h-4" /> Back
+            <ArrowLeft className="w-4 h-4" /> Back to Overview
           </button>
 
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold text-stone-900 tracking-tight">
+          <div className="space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight">
               What are you trying to accomplish?
             </h2>
-            <p className="text-xs text-stone-500 leading-relaxed">
-              Speak or describe everything you want to achieve. As many things as you say you want to do, NEXT5 will review your voice prompt and outline all of them for you to see and confirm.
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Speak or describe everything you want to achieve. As many things as you say, NEXT5 will filter conversational filler and outline every distinct goal for you to confirm.
             </p>
           </div>
 
           {/* Text Input Area */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="onboarding-thought-input" className="text-xs font-bold text-stone-800">
+              <label htmlFor="onboarding-thought-input" className="text-xs font-bold text-slate-300">
                 Your Goals & Current Reality:
               </label>
-              <span className="text-[11px] text-stone-400">{inputText.length} characters</span>
+              <span className="text-[11px] text-slate-500 font-mono">{inputText.length} characters</span>
             </div>
 
             <textarea
               id="onboarding-thought-input"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="e.g. What are you working toward? What needs to happen today or this week? Any hard deadlines or time limits?"
-              rows={5}
-              className="w-full p-3.5 rounded-xl border border-stone-300 bg-white text-stone-900 text-sm focus:ring-2 focus:ring-stone-900 focus:border-stone-900 outline-none leading-relaxed placeholder:text-stone-400"
+              placeholder="e.g. Close the $20k contract with Acme by Friday, hit the gym 4 times this week, finish onboarding redesign, and review quarterly budget..."
+              rows={6}
+              className="w-full p-4 rounded-xl border border-slate-800 bg-slate-900/90 text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none leading-relaxed placeholder:text-slate-500 shadow-inner"
             />
           </div>
 
           {/* Action Buttons: Voice / Submit */}
-          <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
             <button
               id="onboarding-voice-btn"
               type="button"
               onClick={() => setShowVoiceModal(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold transition shadow-sm"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold transition shadow-sm"
             >
-              <Mic className="w-4 h-4 text-red-600" />
-              Talk to NEXT5 (Voice)
+              <Mic className="w-4 h-4 text-emerald-400" />
+              <span>Talk to NEXT5 (Voice)</span>
             </button>
 
             <button
               id="onboarding-extract-btn"
               disabled={!inputText.trim() || isExtracting}
               onClick={() => handleExtractGoals()}
-              className="w-full sm:flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition disabled:opacity-40 shadow-sm"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-300 text-slate-950 text-xs font-extrabold hover:from-emerald-300 hover:to-teal-200 transition disabled:opacity-30 shadow-[0_0_20px_rgba(52,211,153,0.3)] cursor-pointer"
             >
               {isExtracting ? (
                 <>
-                  <Sparkles className="w-4 h-4 animate-spin text-stone-300" />
+                  <Sparkles className="w-4 h-4 animate-spin text-slate-950" />
                   <span>{extractProgress}</span>
                 </>
               ) : (
                 <>
-                  Organize My Priorities
+                  <span>Organize My Priorities</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -306,23 +286,23 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
         </div>
       )}
 
-      {/* SCREEN 3: Candidate Goals Review & Confirmation (PRD Section 4 & 22) */}
+      {/* SCREEN 3: Candidate Goals Review & Confirmation */}
       {step === 3 && (
-        <div className="flex flex-col gap-5 animate-in fade-in duration-200">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-stone-500 text-xs">
-              <span className="font-semibold text-stone-700">Review & Confirm</span>
+        <div className="relative z-10 flex flex-col gap-5 animate-in fade-in duration-200">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-slate-400 text-xs">
+              <span className="font-semibold text-slate-300">Review & Confirm</span>
               <span>•</span>
-              <span className="text-emerald-700 font-semibold flex items-center gap-1">
+              <span className="text-emerald-400 font-semibold flex items-center gap-1">
                 <Check className="w-3.5 h-3.5" />
                 Confirmation Required
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-stone-900 tracking-tight">
-              Outlined {extractedGoals.length} Goals from Your Prompt
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight">
+              Outlined {extractedGoals.length} Goal{extractedGoals.length === 1 ? '' : 's'} from Your Prompt
             </h2>
-            <p className="text-xs text-stone-600">
-              NEXT5 reviewed your input and broke it down into {extractedGoals.length} distinct goals. Review, edit, or add goals before confirming.
+            <p className="text-xs sm:text-sm text-slate-400">
+              NEXT5 separated your prompt into distinct goals. Review, customize, or add goals before calculating your Next 5 moves.
             </p>
           </div>
 
@@ -331,7 +311,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
             {extractedGoals.map((draft, idx) => (
               <div
                 key={draft.tempId}
-                className="p-4 rounded-xl border border-stone-200 bg-white shadow-sm space-y-3 transition"
+                className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 backdrop-blur-md shadow-md shadow-black/40 space-y-3 transition"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
@@ -341,7 +321,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
                           type="text"
                           value={draft.title}
                           onChange={(e) => handleUpdateDraft(idx, { title: e.target.value })}
-                          className="w-full text-sm font-bold text-stone-900 border-b border-stone-400 focus:outline-none pb-1"
+                          className="w-full text-sm font-bold text-slate-100 bg-transparent border-b border-emerald-400 focus:outline-none pb-1"
                           placeholder="Goal title"
                           autoFocus
                         />
@@ -353,8 +333,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
                               onClick={() => handleUpdateDraft(idx, { category: cat })}
                               className={`text-[10px] font-semibold px-2 py-0.5 rounded capitalize ${
                                 draft.category === cat
-                                  ? 'bg-stone-900 text-white'
-                                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                                  ? 'bg-emerald-400 text-slate-950'
+                                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                               }`}
                             >
                               {cat}
@@ -364,12 +344,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
                       </div>
                     ) : (
                       <div>
-                        <h4 className="text-sm font-bold text-stone-900">{draft.title}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-stone-100 text-stone-700 capitalize">
+                        <h4 className="text-sm font-bold text-slate-100">{draft.title}</h4>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 capitalize">
                             {draft.category}
                           </span>
-                          <span className="text-[10px] text-stone-400 uppercase tracking-wider">
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">
                             {draft.goalType}
                           </span>
                         </div>
@@ -379,11 +359,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {draft.isInferred ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="Inferred by AI from your context">
-                        Inferred
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-500/30" title="Suggested from your notes">
+                        Suggested
                       </span>
                     ) : (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200" title="Explicitly stated by you">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-500/30" title="Explicitly stated by you">
                         Confirmed
                       </span>
                     )}
@@ -391,7 +371,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
                     <button
                       type="button"
                       onClick={() => setEditingGoalIndex(editingGoalIndex === idx ? null : idx)}
-                      className="p-1 text-stone-400 hover:text-stone-700 rounded"
+                      className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition"
                       title={editingGoalIndex === idx ? 'Done editing' : 'Edit goal'}
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -400,7 +380,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
                     <button
                       type="button"
                       onClick={() => handleRemoveDraft(idx)}
-                      className="p-1 text-stone-400 hover:text-rose-600 rounded"
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
                       title="Remove goal"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -410,48 +390,48 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
 
                 {/* Inline Editing for target/deadline details */}
                 {editingGoalIndex === idx ? (
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs">
                     <div>
-                      <label className="text-[10px] text-stone-400 uppercase tracking-wider block">Target Value</label>
+                      <label className="text-[10px] text-slate-400 uppercase tracking-wider block">Target Value</label>
                       <input
                         type="text"
                         value={draft.targetValue || ''}
                         onChange={(e) => handleUpdateDraft(idx, { targetValue: e.target.value })}
                         placeholder="e.g. $4M or 100 users"
-                        className="w-full text-xs p-1 border rounded border-stone-200"
+                        className="w-full text-xs p-1.5 border rounded border-slate-700 bg-slate-950 text-slate-100"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-stone-400 uppercase tracking-wider block">Deadline</label>
+                      <label className="text-[10px] text-slate-400 uppercase tracking-wider block">Deadline</label>
                       <input
                         type="text"
                         value={draft.deadline || ''}
                         onChange={(e) => handleUpdateDraft(idx, { deadline: e.target.value })}
                         placeholder="e.g. Tomorrow 3pm, Dec 31"
-                        className="w-full text-xs p-1 border rounded border-stone-200"
+                        className="w-full text-xs p-1.5 border rounded border-slate-700 bg-slate-950 text-slate-100"
                       />
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 text-xs text-stone-600 pt-1 border-t border-stone-100">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 pt-1 border-t border-slate-800/80">
                     {draft.deadline && (
                       <div>
-                        <span className="text-[10px] text-stone-400 uppercase tracking-wider block">Deadline</span>
-                        <span className="font-semibold text-amber-900">{draft.deadline}</span>
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Deadline</span>
+                        <span className="font-semibold text-amber-300">{draft.deadline}</span>
                       </div>
                     )}
 
                     {draft.targetValue && (
                       <div>
-                        <span className="text-[10px] text-stone-400 uppercase tracking-wider block">Target</span>
-                        <span className="font-medium text-stone-900">{draft.targetValue}</span>
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Target</span>
+                        <span className="font-medium text-emerald-300">{draft.targetValue}</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {draft.notes && !editingGoalIndex && (
-                  <p className="text-[11px] text-stone-500 italic bg-stone-50 p-2 rounded-lg">
+                  <p className="text-[11px] text-slate-400 italic bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
                     "{draft.notes}"
                   </p>
                 )}
@@ -462,7 +442,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
             <button
               type="button"
               onClick={handleAddCustomDraft}
-              className="w-full py-2.5 rounded-xl border border-dashed border-stone-300 text-stone-600 hover:bg-stone-100 hover:border-stone-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+              className="w-full py-3 rounded-xl border border-dashed border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-slate-900/40"
             >
               <Plus className="w-3.5 h-3.5" />
               Add another goal
@@ -470,11 +450,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
           </div>
 
           {/* Confirmation & Progress Action */}
-          <div className="flex items-center justify-between gap-3 pt-2 border-t border-stone-200">
+          <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-800">
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="text-xs text-stone-500 hover:text-stone-800 font-medium"
+              className="text-xs text-slate-400 hover:text-slate-200 font-medium"
             >
               Back to edit thoughts
             </button>
@@ -484,10 +464,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
               type="button"
               disabled={extractedGoals.length === 0}
               onClick={handleConfirmAll}
-              className="flex items-center gap-1.5 px-6 py-3 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition disabled:opacity-40 shadow-sm"
+              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-300 text-slate-950 text-xs font-extrabold hover:from-emerald-300 hover:to-teal-200 transition disabled:opacity-30 shadow-[0_0_20px_rgba(52,211,153,0.35)] cursor-pointer"
             >
-              <Check className="w-4 h-4" />
-              Confirm & Calculate My NEXT5
+              <Check className="w-4 h-4 stroke-[3]" />
+              <span>Confirm & Calculate My NEXT5</span>
             </button>
           </div>
         </div>
