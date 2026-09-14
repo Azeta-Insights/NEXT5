@@ -15,6 +15,7 @@ import { AiCoachView } from './components/AiCoachView';
 import { DailyContextModal } from './components/DailyContextModal';
 import { EndOfDayModal } from './components/EndOfDayModal';
 import { AuthModal } from './components/AuthModal';
+import { VoiceGoalBreakdownModal } from './components/VoiceGoalBreakdownModal';
 import { auth, onAuthStateChanged, FirebaseUser } from './lib/firebase';
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [isEndOfDayOpen, setIsEndOfDayOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isVoiceGoalsModalOpen, setIsVoiceGoalsModalOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -287,6 +289,17 @@ export default function App() {
     fetchPriorities();
   };
 
+  const handleBatchAddGoals = (newGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+    newGoals.forEach((g) => {
+      StorageService.addGoal(g);
+    });
+    const updated = StorageService.getGoals();
+    setGoals(updated);
+    showToast(`Outlined & added ${newGoals.length} goal${newGoals.length === 1 ? '' : 's'} from your voice prompt.`);
+    // Automatically recalculate priorities so the new goals are prioritized immediately
+    fetchPriorities(currentMode);
+  };
+
   const handleUpdateGoal = (id: string, updates: Partial<Goal>) => {
     StorageService.updateGoal(id, updates);
     setGoals(StorageService.getGoals());
@@ -383,6 +396,7 @@ export default function App() {
             }}
             onOpenContextModal={() => setIsContextModalOpen(true)}
             onOpenEndOfDay={() => setIsEndOfDayOpen(true)}
+            onOpenVoiceGoals={() => setIsVoiceGoalsModalOpen(true)}
           />
         )}
 
@@ -390,6 +404,7 @@ export default function App() {
           <GoalsView
             goals={goals}
             onAddGoal={handleAddGoal}
+            onBatchAddGoals={handleBatchAddGoals}
             onUpdateGoal={handleUpdateGoal}
             onDeleteGoal={handleDeleteGoal}
           />
@@ -472,6 +487,13 @@ export default function App() {
           StorageService.saveUser(guest);
           showToast('Signed out. Switched to offline session.');
         }}
+      />
+
+      {/* Voice Goal Breakdown Modal */}
+      <VoiceGoalBreakdownModal
+        isOpen={isVoiceGoalsModalOpen}
+        onClose={() => setIsVoiceGoalsModalOpen(false)}
+        onConfirmGoals={handleBatchAddGoals}
       />
 
       {/* Floating Toast Feedback */}

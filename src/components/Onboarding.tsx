@@ -237,7 +237,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
               What are you trying to accomplish?
             </h2>
             <p className="text-xs text-stone-500 leading-relaxed">
-              Tell NEXT5 about your top 1–3 goals right now and what your reality looks like today (deadlines, commitments, available time, or energy). You don't need to organize it first.
+              Speak or describe everything you want to achieve. As many things as you say you want to do, NEXT5 will review your voice prompt and outline all of them for you to see and confirm.
             </p>
           </div>
 
@@ -319,10 +319,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip }) =>
               </span>
             </div>
             <h2 className="text-2xl font-bold text-stone-900 tracking-tight">
-              Here’s what I understood.
+              Outlined {extractedGoals.length} Goals from Your Prompt
             </h2>
             <p className="text-xs text-stone-600">
-              NEXT5 does the organizing, but you do the deciding. Edit, re-categorize, or add goals before confirming.
+              NEXT5 reviewed your input and broke it down into {extractedGoals.length} distinct goals. Review, edit, or add goals before confirming.
             </p>
           </div>
 

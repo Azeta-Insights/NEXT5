@@ -101,17 +101,22 @@ app.post("/api/extract-goals", async (req, res) => {
 
     if (ai) {
       try {
-        const prompt = `You are NEXT5's goal extraction engine. The user is describing their thoughts, challenges, objectives, or responsibilities. User contexts selected: ${(contexts || []).join(", ") || "General"}
-User thought dump: "${text}"
+        const prompt = `You are NEXT5's goal extraction and breakdown engine. The user provided a voice prompt or thought dump describing everything they want to achieve, do, build, fix, finish, or juggle. User contexts selected: ${(contexts || []).join(", ") || "General"}
+User voice prompt / thought dump: "${text}"
 
-CORE DIRECTIVE:
-1. Extract individual goals, measurable targets, projects, habits, or responsibilities.
-2. DO NOT fabricate information: if a deadline, target number, or metric was not mentioned or clearly implied, leave it null or undefined.
-3. Distinguish between what was CONFIRMED (explicitly stated) and what is INFERRED (reasonable deduction). Mark isInferred=true if you inferred a target/category/deadline.
-4. Categorize as: 'work' | 'career' | 'business' | 'personal' | 'health' | 'finance'.
-5. Set goalType as: 'target' | 'project' | 'habit' | 'milestone' | 'outcome'.
-6. Set importance as: 'high' | 'medium' | 'low'.
-7. Provide any key context notes extracted (e.g. "proposal due tomorrow", "exhausted", "manager wants report by 3").`;
+CRITICAL MANDATE - EXHAUSTIVE BREAKDOWN:
+1. Review the user's entire voice prompt carefully.
+2. Break it into individual goals accordingly: As many things as the user says they want to do, outline EVERY SINGLE ONE of them as a separate, distinct goal item.
+3. DO NOT bundle multiple distinct desires or tasks into one general goal.
+4. DO NOT omit or drop any item mentioned by the user, no matter how many they list (whether 3, 5, 8, 12, or more).
+5. Give each goal a crisp, direct title starting with an action verb (e.g., "Prepare client proposal", "Workout at the gym 3 times this week", "Call accountant regarding quarterly taxes", "Study system design chapter 3").
+6. Deduplicate: do NOT output duplicate copies of the same item.
+7. Categorize each goal accurately into one of: 'work' | 'career' | 'business' | 'personal' | 'health' | 'finance'.
+8. Set goalType as: 'target' | 'project' | 'habit' | 'milestone' | 'outcome'.
+9. Set importance as: 'high' | 'medium' | 'low'.
+10. Extract stated target values (e.g. "$5M", "3 times/week", "30 minutes") in targetValue and unit.
+11. Extract stated deadlines (e.g. "Friday", "Tomorrow 3pm", "End of month", "Q3") in deadline.
+12. Mark isInferred=false for goals explicitly stated by the user. Only mark isInferred=true if deduced from indirect context.`;
 
         const response = await generateContentWithFallback(ai, {
           model: "gemini-3.6-flash",
@@ -360,21 +365,484 @@ Provide a direct, crisp response (1-3 brief paragraphs). Focus on trade-offs, se
   }
 });
 
+// 4. Executive Audio Briefing Generator
+app.post("/api/generate-briefing", async (req, res) => {
+  try {
+    const { confirmedGoals, currentRecommendations, dailyContext, userName = "Leader" } = req.body;
+    const ai = getGeminiClient();
+
+    if (ai) {
+      try {
+        const prompt = `You are NEXT5's Executive Audio Briefing anchor. Prepare an ultra-concise, spoken-word executive priority briefing for ${userName}.
+Context:
+- Available Time: ${dailyContext?.availableTime || "Normal"}
+- Energy Level: ${dailyContext?.energy || "70"}%
+- Daily Reality / Pressures: "${dailyContext?.freeformContext || "Standard operational day"}"
+- Active NEXT5 Prioritized Moves: ${JSON.stringify(currentRecommendations?.map((r: any) => `#${r.priorityRank}: ${r.action} (${r.estimatedMinutes}m, ${r.category})`) || [])}
+- Primary Confirmed Goals: ${JSON.stringify(confirmedGoals?.map((g: any) => g.title) || [])}
+
+Requirements:
+1. "script": Write a punchy, spoken briefing (around 120-180 words, ~60-80 seconds when read aloud). Natural spoken cadence, no robotic lists or awkward markdown syntax. Greet them warmly, name the single most critical #1 anchor move, explain why it's #1 right now, give the sequencing for the other moves, and issue a clear strategic boundary ("What to ignore today").
+2. "bulletSummary": 3-4 crisp high-level bullet takeaways.
+3. "estimatedDurationSeconds": 60 to 90 seconds.
+4. "keyAnchor": The single top priority move action title.
+5. "keyBoundary": Clear statement of what NOT to do today to protect focus.`;
+
+        const response = await generateContentWithFallback(ai, {
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                script: { type: Type.STRING },
+                bulletSummary: { type: Type.ARRAY, items: { type: Type.STRING } },
+                estimatedDurationSeconds: { type: Type.NUMBER },
+                keyAnchor: { type: Type.STRING },
+                keyBoundary: { type: Type.STRING },
+              },
+              required: ["script", "bulletSummary", "estimatedDurationSeconds", "keyAnchor", "keyBoundary"],
+            },
+          },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          return res.json({
+            ...parsed,
+            generatedAt: new Date().toISOString(),
+          });
+        }
+      } catch (err: any) {
+        console.log("[Notice] Using fallback briefing generation:", err?.message || err);
+      }
+    }
+
+    // Heuristic Fallback
+    const topRec = currentRecommendations?.[0];
+    const recCount = currentRecommendations?.length || 0;
+    const anchorText = topRec ? topRec.action : "Review and advance your highest leverage objective";
+    const boundaryRec = currentRecommendations?.find((r: any) => r.isNegativeConstraint);
+    const boundaryText = boundaryRec ? boundaryRec.action : "Avoid non-essential chat notifications and low-priority emails until your #1 anchor move is complete.";
+
+    const fallbackScript = `Good day, ${userName}. Here is your NEXT5 priority briefing. Given your available time of ${dailyContext?.availableTime || "one hour"} and current energy level, your day hinges on a single anchor: ${anchorText}. Focus exclusively on locking this down before fragmenting your attention. You have ${recCount} prioritized move${recCount === 1 ? "" : "s"} locked in. Your strategic boundary today is clear: ${boundaryText}. Execute your top move, trust the sequence, and make today count.`;
+
+    return res.json({
+      script: fallbackScript,
+      bulletSummary: [
+        `Anchor Move: ${anchorText}`,
+        `Sequence: Focus on priority #1 before addressing secondary items`,
+        `Boundary: ${boundaryText}`,
+      ],
+      estimatedDurationSeconds: 60,
+      keyAnchor: anchorText,
+      keyBoundary: boundaryText,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error("Error in /api/generate-briefing:", err);
+    res.status(500).json({ error: err.message || "Failed to generate briefing" });
+  }
+});
+
+// 5. Voice Friction Decompressor Endpoint
+app.post("/api/decompress-friction", async (req, res) => {
+  try {
+    const { voiceNoteOrText, currentRecommendations, dailyContext } = req.body;
+    const text = (voiceNoteOrText || "").trim();
+    if (!text) {
+      return res.status(400).json({ error: "Input text is required" });
+    }
+
+    const ai = getGeminiClient();
+
+    if (ai) {
+      try {
+        const prompt = `You are NEXT5's Cognitive Friction Breaker and Tactical Unblocker.
+The user is experiencing friction, procrastination, hesitation, overwhelm, or dread.
+User expressed: "${text}"
+
+Current context:
+- Available Time: ${dailyContext?.availableTime || "Normal"}
+- Energy Level: ${dailyContext?.energy || "70"}%
+- Pending Moves: ${JSON.stringify(currentRecommendations?.filter((r: any) => r.status === 'pending').map((r: any) => ({ id: r.id, rank: r.priorityRank, action: r.action })) || [])}
+
+Tasks:
+1. "rootFriction": Diagnose the exact psychological or practical bottleneck (e.g., Task Ambiguity, Fear of Imperfection, Low Cognitive Energy, Scope Creep, Emotional Dread).
+2. "fiveMinuteMicroMove": Create a ridiculously small, zero-resistance, 5-minute physical action that gets them moving with zero cognitive friction. (e.g. "Open the document and write 2 bullet points with your eyes half closed", "Draft a 1-sentence placeholder email").
+3. "recommendedMode": Choose best EngineMode: '15min' | 'low_energy' | 'bad_day' | 'normal' | 'high_energy' | 'catch_up'.
+4. "strategicReassurance": A grounded 1-2 sentence tactical reassurance that eliminates guilt and restores agency.
+5. "suggestedActionId": If this pertains to one of their pending moves, return its ID; otherwise null.`;
+
+        const response = await generateContentWithFallback(ai, {
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                rootFriction: { type: Type.STRING },
+                fiveMinuteMicroMove: { type: Type.STRING },
+                recommendedMode: { type: Type.STRING },
+                strategicReassurance: { type: Type.STRING },
+                suggestedActionId: { type: Type.STRING },
+              },
+              required: ["rootFriction", "fiveMinuteMicroMove", "strategicReassurance"],
+            },
+          },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          return res.json(parsed);
+        }
+      } catch (err: any) {
+        console.log("[Notice] Using fallback friction decompression:", err?.message || err);
+      }
+    }
+
+    // Heuristic Fallback
+    const lower = text.toLowerCase();
+    let rootFriction = "Initiation Friction: The cognitive activation energy to begin feels disproportionately heavy right now.";
+    let recMode = "15min";
+    if (lower.includes("tired") || lower.includes("exhausted") || lower.includes("sleep")) {
+      rootFriction = "Depleted Cognitive Energy: Your battery is running low, making complex decision-making feel exhausting.";
+      recMode = "low_energy";
+    } else if (lower.includes("overwhelm") || lower.includes("too much") || lower.includes("chaos")) {
+      rootFriction = "Working Memory Overload: Too many competing loops are open simultaneously.";
+      recMode = "bad_day";
+    }
+
+    const firstPending = currentRecommendations?.find((r: any) => r.status === "pending" && !r.isNegativeConstraint);
+
+    return res.json({
+      rootFriction,
+      fiveMinuteMicroMove: firstPending 
+        ? `Open the workspace for "${firstPending.action}" and set a timer for 5 minutes. Do nothing else except writing 1 rough sentence or bullet point.`
+        : "Close all open tabs except one. Write down the single next word or sentence required to move forward, then take a deep breath.",
+      recommendedMode: recMode,
+      strategicReassurance: "You do not need to finish the whole project today. Momentum doesn't require motivation—it only requires starting the first micro-step.",
+      suggestedActionId: firstPending?.id,
+    });
+  } catch (err: any) {
+    console.error("Error in /api/decompress-friction:", err);
+    res.status(500).json({ error: err.message || "Failed to decompress friction" });
+  }
+});
+
+// 6. Weekly Executive Debrief Endpoint
+app.post("/api/weekly-debrief", async (req, res) => {
+  try {
+    const { goals, recommendations, memory } = req.body;
+    const ai = getGeminiClient();
+
+    if (ai) {
+      try {
+        const completedCount = recommendations?.filter((r: any) => r.status === "completed").length || 0;
+        const totalCount = recommendations?.length || 0;
+
+        const prompt = `You are NEXT5's Chief of Staff and Strategic Advisor conducting a weekly executive debrief.
+Review the user's weekly execution data:
+- Completed Moves: ${completedCount} / ${totalCount}
+- Active Goals: ${JSON.stringify(goals?.map((g: any) => ({ title: g.title, category: g.category, deadline: g.deadline, status: g.status })) || [])}
+- Past Moves Status: ${JSON.stringify(recommendations?.map((r: any) => ({ action: r.action, status: r.status, category: r.category })) || [])}
+- Stored User Memory & Behavioral Patterns: ${JSON.stringify(memory || [])}
+
+Generate an insightful, high-caliber weekly debrief report.
+Return JSON matching WeeklyDebriefReport:
+- executiveSummary: 2-3 sentences evaluating the week's execution and focus.
+- strategicExecutionScore: number 0-100 based on completion and alignment.
+- alignmentGrade: letter grade like "A", "A-", "B+", "B", etc.
+- topWin: The standout execution highlight of the week.
+- primaryBlindspot: Key recurring friction or missed opportunity.
+- driftingGoalAlert: Warning if any high-importance goal had no progress or is drifting.
+- upcomingStrategicPriorities: 3 key initiatives for next week.
+- suggestedMemoryRule: { content: string, type: 'explicit_context'|'inferred_constraint'|'observed_pattern', explanation: string }
+- restorationAdvice: Actionable weekend/reset advice to restore cognitive capacity.`;
+
+        const response = await generateContentWithFallback(ai, {
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                executiveSummary: { type: Type.STRING },
+                strategicExecutionScore: { type: Type.NUMBER },
+                alignmentGrade: { type: Type.STRING },
+                topWin: { type: Type.STRING },
+                primaryBlindspot: { type: Type.STRING },
+                driftingGoalAlert: { type: Type.STRING },
+                upcomingStrategicPriorities: { type: Type.ARRAY, items: { type: Type.STRING } },
+                suggestedMemoryRule: {
+                  type: Type.OBJECT,
+                  properties: {
+                    content: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    explanation: { type: Type.STRING },
+                  },
+                  required: ["content", "type", "explanation"],
+                },
+                restorationAdvice: { type: Type.STRING },
+              },
+              required: [
+                "executiveSummary",
+                "strategicExecutionScore",
+                "alignmentGrade",
+                "topWin",
+                "primaryBlindspot",
+                "driftingGoalAlert",
+                "upcomingStrategicPriorities",
+                "suggestedMemoryRule",
+                "restorationAdvice",
+              ],
+            },
+          },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          return res.json({
+            ...parsed,
+            generatedAt: new Date().toISOString(),
+          });
+        }
+      } catch (err: any) {
+        console.log("[Notice] Using fallback weekly debrief generation:", err?.message || err);
+      }
+    }
+
+    // Heuristic Fallback
+    const completedMoves = recommendations?.filter((r: any) => r.status === "completed") || [];
+    const compCount = completedMoves.length;
+    const score = Math.min(100, Math.max(45, 55 + compCount * 10));
+    const grade = score >= 85 ? "A" : score >= 75 ? "B+" : score >= 65 ? "B" : "C+";
+
+    const topGoal = goals?.[0]?.title || "Core Objectives";
+    const topCompleted = completedMoves[0]?.action || "Consistently executing daily prioritized moves";
+
+    return res.json({
+      executiveSummary: `This week you logged ${compCount} completed moves, maintaining solid focus on core goals without letting secondary busywork overwhelm your schedule.`,
+      strategicExecutionScore: score,
+      alignmentGrade: grade,
+      topWin: `Maintained execution discipline on: ${topCompleted}`,
+      primaryBlindspot: "Afternoon attention fragmentation: protect your deep work windows earlier in the day.",
+      driftingGoalAlert: goals?.length > 2 ? `Ensure regular touchpoints on "${goals[goals.length - 1]?.title}" to prevent timeline slippage.` : "No major goal drift detected.",
+      upcomingStrategicPriorities: [
+        `Lock in primary milestone for ${topGoal}`,
+        "Protect morning high-energy hours from reactive meetings",
+        "Conduct quick mid-week calibration when reality shifts"
+      ],
+      suggestedMemoryRule: {
+        content: "Prefers focused morning execution blocks for complex deliverables.",
+        type: "observed_pattern",
+        explanation: "Observed higher completion rate when tackling #1 moves early.",
+      },
+      restorationAdvice: "Step away from screens this weekend to reset your dopamine baseline and recharge working memory.",
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error("Error in /api/weekly-debrief:", err);
+    res.status(500).json({ error: err.message || "Failed to generate weekly debrief" });
+  }
+});
+
+// 7. Scenario Simulation Endpoint
+app.post("/api/simulate-scenario", async (req, res) => {
+  try {
+    const { confirmedGoals, currentRecommendations, dailyContext, scenario } = req.body;
+    const ai = getGeminiClient();
+
+    if (ai) {
+      try {
+        const prompt = `You are NEXT5's Scenario Simulator and Decision Risk Analyzer.
+Simulate what happens to the user's priority sequence when a major operational shift occurs.
+
+SCENARIO TRIGGER:
+- Title: ${scenario?.title || "Circumstance Shift"}
+- Description: ${scenario?.description || "A sudden shift in constraints"}
+- Simulated Available Time: ${scenario?.timeOption || dailyContext?.availableTime || "15m"}
+- Simulated Energy: ${scenario?.energyOption || dailyContext?.energy || "40"}%
+- User Note: "${scenario?.customPrompt || ""}"
+
+CURRENT BASELINE:
+- Current Confirmed Goals: ${JSON.stringify(confirmedGoals?.map((g: any) => ({ id: g.id, title: g.title, category: g.category, importance: g.importance })) || [])}
+- Current Ranked Moves: ${JSON.stringify(currentRecommendations?.map((r: any) => ({ id: r.id, rank: r.priorityRank, action: r.action, minutes: r.estimatedMinutes, isNegativeConstraint: r.isNegativeConstraint })) || [])}
+
+TASK:
+1. Generate up to 3-5 recalculated "simulatedRecommendations" that optimally adapt to this shock. Respect strict time/energy constraints.
+2. Provide a rigorous "tradeOffAnalysis":
+   - "protectedMoves": Array of move action names that MUST NOT be dropped despite the shock.
+   - "displacedMoves": Array of objects { originalRank, action, reasonForDisplacement } explaining what was cut/postponed and why.
+   - "newElevatedMoves": Array of objects { rank, action, whyElevated } explaining any new tactical moves or constraints introduced.
+   - "tradeOffRationale": Direct explanation of the trade-off calculus.
+   - "riskAssessment": What risks are accepted by making this shift vs what risks were averted.`;
+
+        const response = await generateContentWithFallback(ai, {
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                simulatedRecommendations: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      action: { type: Type.STRING },
+                      category: { type: Type.STRING },
+                      rationale: { type: Type.STRING },
+                      whyNow: { type: Type.STRING },
+                      estimatedMinutes: { type: Type.NUMBER },
+                      priorityRank: { type: Type.NUMBER },
+                      confidence: { type: Type.NUMBER },
+                      isNegativeConstraint: { type: Type.BOOLEAN },
+                      substeps: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      frictionPoint: { type: Type.STRING },
+                    },
+                    required: ["action", "category", "rationale", "estimatedMinutes", "priorityRank", "confidence"],
+                  },
+                },
+                tradeOffAnalysis: {
+                  type: Type.OBJECT,
+                  properties: {
+                    protectedMoves: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    displacedMoves: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          originalRank: { type: Type.NUMBER },
+                          action: { type: Type.STRING },
+                          reasonForDisplacement: { type: Type.STRING },
+                        },
+                        required: ["action", "reasonForDisplacement"],
+                      },
+                    },
+                    newElevatedMoves: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          rank: { type: Type.NUMBER },
+                          action: { type: Type.STRING },
+                          whyElevated: { type: Type.STRING },
+                        },
+                        required: ["rank", "action", "whyElevated"],
+                      },
+                    },
+                    tradeOffRationale: { type: Type.STRING },
+                    riskAssessment: { type: Type.STRING },
+                  },
+                  required: ["protectedMoves", "displacedMoves", "newElevatedMoves", "tradeOffRationale", "riskAssessment"],
+                },
+              },
+              required: ["simulatedRecommendations", "tradeOffAnalysis"],
+            },
+          },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          const simulated = (parsed.simulatedRecommendations || []).slice(0, 5).map((r: any, idx: number) => ({
+            ...r,
+            id: `sim_rec_${Date.now()}_${idx}`,
+            priorityRank: idx + 1,
+            status: "pending",
+            date: dailyContext?.date || new Date().toISOString().split("T")[0],
+          }));
+          return res.json({
+            simulatedRecommendations: simulated,
+            tradeOffAnalysis: parsed.tradeOffAnalysis,
+          });
+        }
+      } catch (err: any) {
+        console.log("[Notice] Using fallback scenario simulation:", err?.message || err);
+      }
+    }
+
+    // Heuristic Fallback
+    const simTime = scenario?.timeOption || "15m";
+    const simEnergy = parseInt(scenario?.energyOption || "40", 10);
+    const topMove = currentRecommendations?.[0];
+
+    const simMoves: any[] = [];
+    if (topMove) {
+      simMoves.push({
+        id: `sim_rec_${Date.now()}_0`,
+        action: `[Compress to ${simTime}] ${topMove.action}`,
+        category: topMove.category || "work",
+        rationale: "Preserved as the single non-negotiable anchor, compressed to fit the sudden constraint.",
+        whyNow: "Dropping your #1 priority causes compounding fallout; compressing it keeps momentum alive.",
+        estimatedMinutes: simTime === "15m" ? 15 : 20,
+        priorityRank: 1,
+        confidence: 0.95,
+        isNegativeConstraint: false,
+        status: "pending",
+        date: dailyContext?.date || new Date().toISOString().split("T")[0],
+      });
+    }
+
+    simMoves.push({
+      id: `sim_rec_${Date.now()}_1`,
+      action: "DON'T accept new inbound requests or open reactive messaging channels",
+      category: "boundary",
+      rationale: "With severe time/energy constraints, any peripheral interruption will derail your single remaining move.",
+      whyNow: "Immediate containment required by current circumstances.",
+      estimatedMinutes: 0,
+      priorityRank: 2,
+      confidence: 0.98,
+      isNegativeConstraint: true,
+      status: "pending",
+      date: dailyContext?.date || new Date().toISOString().split("T")[0],
+    });
+
+    const displaced = (currentRecommendations || []).slice(1).map((r: any) => ({
+      originalRank: r.priorityRank,
+      action: r.action,
+      reasonForDisplacement: "Postponed to protect the single critical path under simulated constraints.",
+    }));
+
+    return res.json({
+      simulatedRecommendations: simMoves,
+      tradeOffAnalysis: {
+        protectedMoves: topMove ? [topMove.action] : ["Top Strategic Priority"],
+        displacedMoves: displaced,
+        newElevatedMoves: [
+          {
+            rank: 2,
+            action: "Strict inbound boundary enforcement",
+            whyElevated: "Prevents distraction leak during compressed window.",
+          },
+        ],
+        tradeOffRationale: `When available bandwidth shifts to ${simTime} and energy to ${simEnergy}%, ruthlessly shedding secondary tasks prevents total operational paralysis.`,
+        riskAssessment: "Accepted risk: secondary milestones are paused for 24 hours. Averted risk: failure on core non-negotiable deliverable.",
+      },
+    });
+  } catch (err: any) {
+    console.error("Error in /api/simulate-scenario:", err);
+    res.status(500).json({ error: err.message || "Failed to simulate scenario" });
+  }
+});
+
 // Helper: Heuristic goal extraction fallback
 function generateFallbackGoals(text: string, contexts: string[] = []): any[] {
   const goals: any[] = [];
   if (!text || !text.trim()) return goals;
 
   const rawClauses = text
-    .split(/\n+|;|\. |\band\b/i)
+    .split(/\n+|;|\. |\band\b|\balso\b|\bthen\b|\bplus\b|\bas well as\b|\bneed to\b|\bwant to\b/i)
     .map(c => c.trim().replace(/^[-* \d.)\s]+/, ""))
     .filter(c => c.length > 5);
 
   const seenTitles = new Set<string>();
 
   for (const clause of rawClauses) {
-    if (goals.length >= 5) break;
-
     const lower = clause.toLowerCase();
     let title = clause.charAt(0).toUpperCase() + clause.slice(1);
     if (title.length > 65) {
@@ -648,3 +1116,5 @@ async function startServer() {
 }
 
 startServer();
+
+export default app;

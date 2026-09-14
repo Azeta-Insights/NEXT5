@@ -20,13 +20,16 @@ import {
   Shield,
   HelpCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  Mic
 } from 'lucide-react';
 import { Goal, GoalCategory, GoalImportance, GoalStatus, GoalType } from '../types';
+import { VoiceGoalBreakdownModal } from './VoiceGoalBreakdownModal';
 
 interface GoalsViewProps {
   goals: Goal[];
   onAddGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onBatchAddGoals?: (goals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   onUpdateGoal: (id: string, updates: Partial<Goal>) => void;
   onDeleteGoal: (id: string) => void;
 }
@@ -43,6 +46,7 @@ const CATEGORY_CONFIG: Record<GoalCategory, { label: string; icon: React.Compone
 export const GoalsView: React.FC<GoalsViewProps> = ({
   goals,
   onAddGoal,
+  onBatchAddGoals,
   onUpdateGoal,
   onDeleteGoal,
 }) => {
@@ -50,7 +54,16 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
   const [activeStatus, setActiveStatus] = useState<GoalStatus>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showVoiceBreakdown, setShowVoiceBreakdown] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+
+  const handleConfirmVoiceGoals = (newGoals: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+    if (onBatchAddGoals) {
+      onBatchAddGoals(newGoals);
+    } else {
+      newGoals.forEach((g) => onAddGoal(g));
+    }
+  };
 
   // Form State
   const [title, setTitle] = useState('');
@@ -198,14 +211,27 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
           </p>
         </div>
 
-        <button
-          id="add-goal-btn"
-          onClick={openAddModal}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition shadow-sm self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Add Goal
-        </button>
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          <button
+            id="voice-goals-breakdown-btn"
+            onClick={() => setShowVoiceBreakdown(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold transition shadow-xs"
+            title="Review voice prompt and outline all goals"
+          >
+            <Mic className="w-4 h-4 text-red-600" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Speak Goals (Voice Breakdown)</span>
+          </button>
+
+          <button
+            id="add-goal-btn"
+            onClick={openAddModal}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Goal
+          </button>
+        </div>
       </div>
 
       {/* Goal Health Metrics Overview */}
@@ -515,12 +541,21 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
             <p className="text-xs text-stone-400 max-w-sm mx-auto">
               Add goals with concrete deadlines or metrics so NEXT5 can prioritize moves with mathematical precision.
             </p>
-            <button
-              onClick={openAddModal}
-              className="px-4 py-2 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition"
-            >
-              Add New Goal
-            </button>
+            <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+              <button
+                onClick={() => setShowVoiceBreakdown(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold transition shadow-xs"
+              >
+                <Mic className="w-3.5 h-3.5 text-red-600" />
+                <span>Speak Goals (Voice)</span>
+              </button>
+              <button
+                onClick={openAddModal}
+                className="px-4 py-2 rounded-xl bg-stone-900 text-stone-50 text-xs font-bold hover:bg-stone-800 transition shadow-xs"
+              >
+                Add New Goal Manually
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -684,6 +719,13 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Voice Goal Breakdown Modal */}
+      <VoiceGoalBreakdownModal
+        isOpen={showVoiceBreakdown}
+        onClose={() => setShowVoiceBreakdown(false)}
+        onConfirmGoals={handleConfirmVoiceGoals}
+      />
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   CheckCircle2, ChevronDown, ChevronUp, 
   Sparkles, RefreshCw, ArrowRight, ShieldAlert,
-  Lightbulb, ListChecks
+  Lightbulb, ListChecks, Mic
 } from 'lucide-react';
 import { Recommendation, DailyContext, Goal, EngineMode } from '../types';
 
@@ -16,6 +16,7 @@ interface Next5ViewProps {
   onRefreshPriorities: (mode?: EngineMode) => void;
   onOpenContextModal: () => void;
   onOpenEndOfDay: () => void;
+  onOpenVoiceGoals?: () => void;
 }
 
 const ENGINE_MODES: { id: EngineMode; label: string; description: string }[] = [
@@ -73,6 +74,7 @@ export const Next5View: React.FC<Next5ViewProps> = ({
   onRefreshPriorities,
   onOpenContextModal,
   onOpenEndOfDay,
+  onOpenVoiceGoals,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdjustMenu, setShowAdjustMenu] = useState(false);
@@ -84,14 +86,52 @@ export const Next5View: React.FC<Next5ViewProps> = ({
   return (
     <div className="space-y-4 pb-24 max-w-2xl mx-auto">
       {/* 1. Calm Hero Section */}
-      <div className="pt-2 pb-1 space-y-1">
-        <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
-          YOUR NEXT5
-        </h1>
-        <p className="text-xs sm:text-sm text-stone-500 font-normal leading-relaxed">
-          What matters most today, based on your goals and what’s happening now.
-        </p>
+      <div className="pt-2 pb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="space-y-1">
+          <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
+            YOUR NEXT5
+          </h1>
+          <p className="text-xs sm:text-sm text-stone-500 font-normal leading-relaxed">
+            What matters most today, based on your goals and what’s happening now.
+          </p>
+        </div>
+
+        {onOpenVoiceGoals && (
+          <button
+            id="speak-goals-next5-btn"
+            onClick={onOpenVoiceGoals}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold transition shadow-2xs self-start sm:self-auto shrink-0"
+            title="Review voice prompt and outline all goals"
+          >
+            <Mic className="w-3.5 h-3.5 text-red-600" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Speak Goals</span>
+          </button>
+        )}
       </div>
+
+      {/* Calibration notice if fewer than 5 moves are generated */}
+      {!isLoading && recommendations.length > 0 && recommendations.length < 5 && (
+        <div className="p-3 rounded-xl bg-stone-100/70 border border-stone-200/80 flex items-center justify-between gap-3 text-xs">
+          <div className="space-y-0.5 text-stone-600">
+            <span className="font-semibold text-stone-800">
+              Calibrated {recommendations.length} moves for your {formatAvailableTime(dailyContext.availableTime)} window ({dailyContext.energy}% energy).
+            </span>
+            <p className="text-[11px] text-stone-500">
+              Want NEXT5 to outline more goals from voice?
+            </p>
+          </div>
+          {onOpenVoiceGoals && (
+            <button
+              onClick={onOpenVoiceGoals}
+              className="px-2.5 py-1 rounded-lg border border-stone-300 bg-white hover:bg-stone-50 text-stone-900 font-bold text-[11px] shrink-0 flex items-center gap-1"
+            >
+              <Mic className="w-3 h-3 text-red-600" />
+              <span>Outline Goals</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && (
