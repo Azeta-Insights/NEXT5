@@ -96,18 +96,18 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="text-[11px] text-slate-400 truncate">
                     {user.email || 'Local workspace'}
                   </div>
-                  {onOpenAuth && (
+                  {isUserSignedIn && onOpenAuth && (
                     <button
                       id="menu-account-btn"
                       onClick={() => {
                         onOpenAuth();
                         setShowMenu(false);
                       }}
-                      className="mt-2.5 w-full text-left flex items-center justify-between text-xs font-semibold text-slate-200 hover:text-emerald-300 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 transition border border-slate-700"
+                      className="mt-2.5 w-full text-left flex items-center justify-between text-xs font-semibold text-slate-200 hover:text-emerald-300 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 transition border border-slate-700 cursor-pointer"
                     >
                       <span className="flex items-center gap-2">
                         <User className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>{isUserSignedIn ? 'Profile Settings' : 'Sign In'}</span>
+                        <span>Profile Settings</span>
                       </span>
                       <ChevronDown className="w-3 h-3 text-slate-400 -rotate-90" />
                     </button>
