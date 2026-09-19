@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Goal, DailyContext, Recommendation, DailyFeedback, MemoryItem, 
   UserProfile, EngineMode, FeedbackRating 
 } from './types';
 import { StorageService } from './lib/storage';
+import { calculateClientHeuristicPriorities } from './lib/prioritizer';
 import { Header } from './components/Header';
 import { Navigation, NavTab } from './components/Navigation';
 import { Onboarding } from './components/Onboarding';
@@ -34,6 +35,10 @@ export default function App() {
   const [isLoadingRecs, setIsLoadingRecs] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Guards to prevent infinite loops, race conditions, and duplicate recalculations
+  const isCalculatingRef = useRef<boolean>(false);
+  const hasInitialPrioritizedRef = useRef<boolean>(false);
+
   // Modals
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [isEndOfDayOpen, setIsEndOfDayOpen] = useState(false);
@@ -47,14 +52,23 @@ export default function App() {
     }, 2800);
   };
 
-  // Prioritize using Server API (with local deterministic fallback)
+  // Prioritize using Server API with instant, deterministic client fallback
   const fetchPriorities = useCallback(
-    async (modeToUse: EngineMode = currentMode, overrideContext?: DailyContext) => {
+    async (
+      modeToUse: EngineMode = currentMode, 
+      overrideContext?: DailyContext,
+      options?: { silent?: boolean }
+    ) => {
+      if (isCalculatingRef.current) return;
+      isCalculatingRef.current = true;
+
       const ctx = overrideContext || dailyContext;
-      const confirmedGoals = goals.filter((g) => g.status === 'active' && g.confirmed);
+      const confirmedGoals = goals.filter((g) => g.status === 'active' && g.confirmed !== false);
 
       if (confirmedGoals.length === 0) {
         setRecommendations([]);
+        StorageService.saveRecommendations([]);
+        isCalculatingRef.current = false;
         return;
       }
 
@@ -72,22 +86,40 @@ export default function App() {
         });
 
         if (!res.ok) {
-          throw new Error('Server error');
+          throw new Error(`Server responded with status ${res.status}`);
         }
 
         const data = await res.json();
-        const recs: Recommendation[] = data.recommendations || [];
+        const recs: Recommendation[] = (data.recommendations && data.recommendations.length > 0)
+          ? data.recommendations
+          : calculateClientHeuristicPriorities(confirmedGoals, ctx, modeToUse);
+
         setRecommendations(recs);
         StorageService.saveRecommendations(recs);
-        showToast(
-          modeToUse === 'normal'
-            ? 'Priorities calculated.'
-            : `Recalibrated for ${modeToUse.replace('_', ' ')} mode.`
-        );
+
+        if (!options?.silent) {
+          showToast(
+            modeToUse === 'normal'
+              ? 'Priorities calculated.'
+              : `Recalibrated for ${modeToUse.replace('_', ' ')} mode.`
+          );
+        }
       } catch (err) {
-        console.warn('Fallback prioritizing on client:', err);
+        console.warn('[Notice] Using robust client prioritizer fallback:', err);
+        const fallbackRecs = calculateClientHeuristicPriorities(confirmedGoals, ctx, modeToUse);
+        setRecommendations(fallbackRecs);
+        StorageService.saveRecommendations(fallbackRecs);
+
+        if (!options?.silent) {
+          showToast(
+            modeToUse === 'normal'
+              ? 'Priorities updated.'
+              : `Recalibrated for ${modeToUse.replace('_', ' ')} mode.`
+          );
+        }
       } finally {
         setIsLoadingRecs(false);
+        isCalculatingRef.current = false;
       }
     },
     [goals, dailyContext, currentMode, memory]
@@ -119,7 +151,7 @@ export default function App() {
           }
           if (cloudData.goals && cloudData.goals.length > 0) {
             setGoals(cloudData.goals);
-            cloudData.goals.forEach((g) => StorageService.addGoal(g));
+            StorageService.saveGoals(cloudData.goals);
           }
         } catch (e) {
           console.warn('Initial cloud sync notice:', e);
@@ -130,12 +162,18 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Recalculate priorities if goals change or recommendations are empty
+  // Safe initial priority calculation on app mount if recommendations are empty
   useEffect(() => {
-    if (isOnboardingDone && goals.length > 0 && recommendations.length === 0 && !isLoadingRecs) {
-      fetchPriorities(currentMode);
+    if (
+      isOnboardingDone && 
+      goals.length > 0 && 
+      recommendations.length === 0 && 
+      !hasInitialPrioritizedRef.current
+    ) {
+      hasInitialPrioritizedRef.current = true;
+      fetchPriorities(currentMode, undefined, { silent: true });
     }
-  }, [isOnboardingDone, goals, recommendations.length, currentMode, fetchPriorities, isLoadingRecs]);
+  }, [isOnboardingDone, goals.length, recommendations.length, currentMode, fetchPriorities]);
 
   // Reset all workspace data to true clean state
   const handleResetAll = () => {
@@ -391,7 +429,7 @@ export default function App() {
               const cloudData = await FirestoreSync.loadUserData(profile.id);
               if (cloudData.goals && cloudData.goals.length > 0) {
                 setGoals(cloudData.goals);
-                cloudData.goals.forEach((g) => StorageService.addGoal(g));
+                StorageService.saveGoals(cloudData.goals);
               }
             } catch (e) {
               console.warn('Sync notice:', e);
@@ -535,7 +573,7 @@ export default function App() {
             const cloudData = await FirestoreSync.loadUserData(profile.id);
             if (cloudData.goals && cloudData.goals.length > 0) {
               setGoals(cloudData.goals);
-              cloudData.goals.forEach((g) => StorageService.addGoal(g));
+              StorageService.saveGoals(cloudData.goals);
             }
           } catch (e) {
             console.warn('Sync notice:', e);
