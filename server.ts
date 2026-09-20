@@ -9,6 +9,13 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 app.use(express.json());
+app.use(express.static(path.join(process.cwd(), "public")));
+
+// Direct favicon handler for browser tab icon queries
+app.get(["/favicon.ico", "/favicon.svg"], (_req, res) => {
+  res.setHeader("Content-Type", "image/svg+xml");
+  res.sendFile(path.join(process.cwd(), "public", "favicon.svg"));
+});
 
 // Initialize Gemini SDK with safe check
 let aiClient: GoogleGenAI | null = null;
